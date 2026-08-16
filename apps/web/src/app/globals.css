@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 :root {
   --background: #ffffff;
@@ -29,8 +28,10 @@ body {
 .custom-map-pin {
   background: transparent;
   border: none;
+  cursor: pointer;
+  line-height: 0;
 }
 
-.leaflet-container {
+.maplibregl-map {
   font: inherit;
 }

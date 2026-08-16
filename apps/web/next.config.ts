@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   allowedDevOrigins: ["192.168.1.125"],
+  transpilePackages: ["maplibre-gl"],
 };
 
 export default nextConfig;
