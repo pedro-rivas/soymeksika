@@ -10,7 +10,6 @@ import {
   type Pin,
   type PinLinks,
 } from "../lib/pins";
-import AddPinModal from "./AddPinModal";
 import type { PlaceResult } from "./PlaceSearch";
 
 const Map = dynamic(() => import("./Map"), {
@@ -22,6 +21,8 @@ const Map = dynamic(() => import("./Map"), {
   ),
 });
 
+const AddPinModal = dynamic(() => import("./AddPinModal"));
+
 const IS_DEV = process.env.NODE_ENV === "development";
 
 const DEV_PILL =
@@ -30,9 +31,12 @@ const DEV_PILL =
 const DEV_PILL_ACTIVE =
   "rounded-full border border-zinc-900 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800";
 
-export default function MapLoader() {
-  const [pins, setPins] = useState<Pin[]>([]);
-  const [pinsReady, setPinsReady] = useState(false);
+type MapLoaderProps = {
+  initialPins: Pin[];
+};
+
+export default function MapLoader({ initialPins }: MapLoaderProps) {
+  const [pins, setPins] = useState<Pin[]>(initialPins);
   const [modalOpen, setModalOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [draftLngLat, setDraftLngLat] = useState<[number, number] | null>(null);
@@ -48,12 +52,11 @@ export default function MapLoader() {
     } catch (err) {
       console.error(err);
       setError("Could not load pins");
-    } finally {
-      setPinsReady(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!IS_DEV) return;
     void refreshPins();
   }, [refreshPins]);
 
@@ -113,14 +116,6 @@ export default function MapLoader() {
       return !open;
     });
   };
-
-  if (!pinsReady) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-zinc-100 text-zinc-600">
-        Loading map…
-      </div>
-    );
-  }
 
   return (
     <>

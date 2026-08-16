@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Map as MapLibreMap,
   Marker,
@@ -17,31 +18,26 @@ import {
 import { initialViewFromPins } from "../lib/mapView";
 import { STYLE, STYLE_URL, applyHomeMapStyle } from "../lib/mapStyle";
 import { SOCIAL_ICON_SVG } from "./socialIcons";
-import {
-  findCountry,
-  listCountries,
-  loadCountries,
-  type CountryCollection,
-  type CountrySummary,
+import type {
+  CountryCollection,
+  CountryFeature,
+  CountrySummary,
 } from "../lib/countries";
-import {
-  COUNTRY_LAYERS,
+import type {
   CountryHighlightPlayer,
-  installCountryLayers,
-  type HighlightPhase,
+  HighlightPhase,
 } from "../lib/animations/countryHighlight";
-import AnimationPanel from "./AnimationPanel";
-import CountryNameTitle from "./CountryNameTitle";
-import {
-  DEFAULT_TITLE_STYLE,
-  type TitleStyleId,
-} from "../lib/animations/titleStyles";
+import type { TitleStyleId } from "../lib/animations/titleStyles";
+
+const AnimationPanel = dynamic(() => import("./AnimationPanel"));
+const CountryNameTitle = dynamic(() => import("./CountryNameTitle"));
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const TOOLTIP_MIN_ZOOM = 10;
 const DEFAULT_COUNTRY = "Mexico";
+const DEFAULT_TITLE_STYLE: TitleStyleId = "pop";
 const TITLE_PHASES = new Set<HighlightPhase>([
   "naming",
   "holding",
@@ -211,6 +207,11 @@ export default function Map({
   // Capture initial camera once so later pin add/delete does not re-center.
   const initialViewRef = useRef(initialViewFromPins(pins));
   const playerRef = useRef<CountryHighlightPlayer | null>(null);
+  const PlayerCtorRef = useRef<(new () => CountryHighlightPlayer) | null>(null);
+  const findCountryRef = useRef<
+    | ((data: CountryCollection, name: string) => CountryFeature | undefined)
+    | null
+  >(null);
   const countriesDataRef = useRef<CountryCollection | null>(null);
   const [countries, setCountries] = useState<CountrySummary[]>([]);
   const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
@@ -261,27 +262,37 @@ export default function Map({
       syncTooltipZoomGate();
 
       if (enableAnimations) {
-        loadCountries()
-          .then((data) => {
+        Promise.all([
+          import("../lib/countries"),
+          import("../lib/animations/countryHighlight"),
+        ])
+          .then(([countriesMod, highlightMod]) => {
             if (cancelled) return;
-            countriesDataRef.current = data;
-            installCountryLayers(map, data);
-            setCountries(listCountries(data));
+            findCountryRef.current = countriesMod.findCountry;
+            PlayerCtorRef.current = highlightMod.CountryHighlightPlayer;
+            return countriesMod.loadCountries().then((data) => {
+              if (cancelled) return;
+              countriesDataRef.current = data;
+              highlightMod.installCountryLayers(map, data);
+              setCountries(countriesMod.listCountries(data));
 
-            map.on("click", COUNTRY_LAYERS.hit, (e) => {
-              if (pickingRef.current) return;
-              const name = e.features?.[0]?.properties?.NAME;
-              if (typeof name === "string" && name.length > 0) {
-                setSelectedCountry(name);
-              }
-            });
-            map.on("mouseenter", COUNTRY_LAYERS.hit, () => {
-              if (!pickingRef.current) map.getCanvas().style.cursor = "pointer";
-            });
-            map.on("mouseleave", COUNTRY_LAYERS.hit, () => {
-              map.getCanvas().style.cursor = pickingRef.current
-                ? "crosshair"
-                : "";
+              const hitLayer = highlightMod.COUNTRY_LAYERS.hit;
+              map.on("click", hitLayer, (e) => {
+                if (pickingRef.current) return;
+                const name = e.features?.[0]?.properties?.NAME;
+                if (typeof name === "string" && name.length > 0) {
+                  setSelectedCountry(name);
+                }
+              });
+              map.on("mouseenter", hitLayer, () => {
+                if (!pickingRef.current)
+                  map.getCanvas().style.cursor = "pointer";
+              });
+              map.on("mouseleave", hitLayer, () => {
+                map.getCanvas().style.cursor = pickingRef.current
+                  ? "crosshair"
+                  : "";
+              });
             });
           })
           .catch((err) => console.error("Failed to load country data", err));
@@ -421,10 +432,12 @@ export default function Map({
   const handlePlay = useCallback(() => {
     const map = mapRef.current;
     const data = countriesDataRef.current;
-    if (!map || !data) return;
+    const findCountry = findCountryRef.current;
+    const PlayerCtor = PlayerCtorRef.current;
+    if (!map || !data || !findCountry || !PlayerCtor) return;
     const feature = findCountry(data, selectedCountry);
     if (!feature) return;
-    if (!playerRef.current) playerRef.current = new CountryHighlightPlayer();
+    if (!playerRef.current) playerRef.current = new PlayerCtor();
     void playerRef.current.play(map, feature, setPhase, { fillWithFlag });
   }, [selectedCountry, fillWithFlag]);
 

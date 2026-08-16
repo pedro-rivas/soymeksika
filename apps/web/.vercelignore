@@ -1,2 +1,10 @@
 # Local-only recording assets for /globe — never upload to Vercel.
 dev-assets
+
+# Dev-only country GeoJSON (Animations feature); served locally by next dev.
+public/data
+
+# Docs — not needed at build time on Vercel.
+AGENTS.md
+CLAUDE.md
+README.md
