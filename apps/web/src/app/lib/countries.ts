@@ -24,6 +24,7 @@ export interface CountryCollection {
 
 export interface CountrySummary {
   name: string;
+  spanishName: string;
   iso2: string;
   continent: string;
 }
@@ -54,6 +55,7 @@ export function listCountries(data: CountryCollection): CountrySummary[] {
     }
     byName.set(NAME, {
       name: NAME,
+      spanishName: spanishCountryName(feature),
       iso2: typeof ISO_A2 === "string" ? ISO_A2 : "",
       continent: typeof CONTINENT === "string" ? CONTINENT : "",
     });
@@ -66,6 +68,21 @@ export function findCountry(
   name: string,
 ): CountryFeature | undefined {
   return data.features.find((f) => f.properties.NAME === name);
+}
+
+/** Spanish display name via Intl; falls back to English NAME. */
+export function spanishCountryName(feature: CountryFeature): string {
+  const iso = feature.properties.ISO_A2;
+  const fallback =
+    typeof feature.properties.NAME === "string" ? feature.properties.NAME : "";
+  if (typeof iso !== "string" || iso.length !== 2 || iso === "-99") {
+    return fallback;
+  }
+  try {
+    return new Intl.DisplayNames(["es"], { type: "region" }).of(iso) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 /**

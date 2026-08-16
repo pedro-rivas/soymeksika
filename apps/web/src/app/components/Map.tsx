@@ -31,12 +31,18 @@ import {
   type HighlightPhase,
 } from "../lib/animations/countryHighlight";
 import AnimationPanel from "./AnimationPanel";
+import CountryNameTitle from "./CountryNameTitle";
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const TOOLTIP_MIN_ZOOM = 10;
 const DEFAULT_COUNTRY = "Mexico";
+const TITLE_PHASES = new Set<HighlightPhase>([
+  "naming",
+  "holding",
+  "closing",
+]);
 const PIN_SVG = `
   <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -429,6 +435,10 @@ export default function Map({
     return () => onAnimationControls?.(null);
   }, [enableAnimations, handleStop, onAnimationControls]);
 
+  const titleName = TITLE_PHASES.has(phase)
+    ? (countries.find((c) => c.name === selectedCountry)?.spanishName ?? null)
+    : null;
+
   return (
     <>
       <div
@@ -436,6 +446,9 @@ export default function Map({
         className={`h-full w-full${picking ? " map-picking" : ""}`}
         style={{ height: "100%", width: "100%" }}
       />
+      {enableAnimations && showAnimationPanel && titleName && (
+        <CountryNameTitle name={titleName} exiting={phase === "closing"} />
+      )}
       {enableAnimations && showAnimationPanel && (
         <AnimationPanel
           countries={countries}

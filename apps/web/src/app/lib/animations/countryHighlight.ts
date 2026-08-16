@@ -9,6 +9,7 @@ export type HighlightPhase =
   | "idle"
   | "arriving"
   | "highlighting"
+  | "naming"
   | "holding"
   | "closing";
 
@@ -34,7 +35,8 @@ const NO_COUNTRY = "__none__";
 const FLY_MS = 2600;
 const HIGHLIGHT_MS = 900;
 const DIM_MS = 900;
-const HOLD_MS = 700;
+const NAME_MS = 700;
+const HOLD_MS = 900;
 const CLOSE_MS = 1100;
 const MAX_COUNTRY_ZOOM = 5.5;
 
@@ -201,8 +203,13 @@ async function highlightIn(map: MapLibreMap, token: StopToken): Promise<void> {
   await Promise.all([dimRamp, fillRamp]);
 }
 
-async function hold(_map: MapLibreMap, _token: StopToken): Promise<void> {
+async function hold(): Promise<void> {
   await wait(HOLD_MS);
+}
+
+async function revealName(token: StopToken): Promise<void> {
+  await wait(NAME_MS);
+  if (token.stopped) return;
 }
 
 async function closeOut(map: MapLibreMap, token: StopToken): Promise<void> {
@@ -217,8 +224,8 @@ async function closeOut(map: MapLibreMap, token: StopToken): Promise<void> {
 
 /**
  * Plays the "Country Highlight" travel intro: fly to the country, dim the
- * rest of the world, fade in a glowing highlight, hold, then close the
- * highlight out so the next animation can take over.
+ * rest of the world, fade in a glowing highlight, reveal the Spanish name,
+ * hold, then close the highlight out so the next animation can take over.
  */
 export class CountryHighlightPlayer {
   private token: StopToken | null = null;
@@ -252,8 +259,12 @@ export class CountryHighlightPlayer {
       await highlightIn(map, token);
       if (token.stopped) return;
 
+      setPhase("naming");
+      await revealName(token);
+      if (token.stopped) return;
+
       setPhase("holding");
-      await hold(map, token);
+      await hold();
       if (token.stopped) return;
 
       setPhase("closing");

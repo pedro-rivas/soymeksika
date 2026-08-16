@@ -7,6 +7,7 @@ const PHASE_LABELS: Record<HighlightPhase, string> = {
   idle: "Ready",
   arriving: "Flying to country…",
   highlighting: "Highlighting…",
+  naming: "Showing name…",
   holding: "Holding highlight…",
   closing: "Closing highlight…",
 };
@@ -52,8 +53,8 @@ export default function AnimationPanel({
 
       <div className="space-y-3 px-4 pb-4 pt-2">
         <p className="text-xs leading-relaxed text-zinc-400">
-          Flies to the selected country, fades in a glowing highlight, then
-          closes it out.
+          Flies to the selected country, fades in a glowing highlight, reveals
+          the Spanish name, then closes it out.
         </p>
 
         <label className="block space-y-1.5">
