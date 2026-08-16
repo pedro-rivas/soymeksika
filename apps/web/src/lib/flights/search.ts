@@ -8,7 +8,10 @@ import {
 } from "fast-flights-ts";
 
 export type FlightOffer = {
+  /** Outbound departure date (YYYY-MM-DD). */
   date: string;
+  /** Return departure date (YYYY-MM-DD). */
+  returnDate: string;
   price: number;
   currency: string;
   airline: string;
@@ -16,7 +19,7 @@ export type FlightOffer = {
   stops: number;
   departTime: string;
   arriveTime: string;
-  /** Ordered IATA codes along the itinerary (origin → stops → destination). */
+  /** Ordered IATA codes along the outbound itinerary. */
   airports: string[];
 };
 
@@ -24,6 +27,7 @@ export type FlightSearchResult = {
   origin: string;
   dest: string;
   currency: string;
+  stayDays: number;
   sampledDates: number;
   cheapestPerDate: FlightOffer[];
   topOffers: FlightOffer[];
@@ -38,6 +42,7 @@ type CacheEntry = {
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_CURRENCY: Currency = "MXN";
 const DEFAULT_CONCURRENCY = 3;
+const DEFAULT_STAY_DAYS = 7;
 const cache = new Map<string, CacheEntry>();
 
 const SUPPORTED_CURRENCIES = new Set<string>([
@@ -55,6 +60,12 @@ function asCurrency(value: string): Currency {
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return formatDate(d);
 }
 
 function sampleDates(days: number, every: number): string[] {
@@ -121,6 +132,7 @@ function routeAirports(flight: Flights): string[] {
 function normalizeOffer(
   flight: Flights,
   date: string,
+  returnDate: string,
   currency: string,
 ): FlightOffer | null {
   if (!Number.isFinite(flight.price) || flight.price <= 0) return null;
@@ -132,6 +144,7 @@ function normalizeOffer(
 
   return {
     date,
+    returnDate,
     price: flight.price,
     currency,
     airline: flight.airlines.join(", ") || "Unknown",
@@ -175,13 +188,17 @@ async function searchDate(
   origin: string,
   dest: string,
   date: string,
+  returnDate: string,
   currency: Currency,
 ): Promise<FlightOffer | null> {
   try {
     const query = createQuery({
-      flights: [{ date, from_airport: origin, to_airport: dest }],
+      flights: [
+        { date, from_airport: origin, to_airport: dest },
+        { date: returnDate, from_airport: dest, to_airport: origin },
+      ],
       seat: "economy",
-      trip: "one-way",
+      trip: "round-trip",
       passengers: new Passengers({ adults: 1 }),
       currency,
       language: "en",
@@ -198,13 +215,16 @@ async function searchDate(
 
     let best: FlightOffer | null = null;
     for (const flight of results) {
-      const offer = normalizeOffer(flight, date, currency);
+      const offer = normalizeOffer(flight, date, returnDate, currency);
       if (!offer) continue;
       if (!best || offer.price < best.price) best = offer;
     }
     return best;
   } catch (err) {
-    console.warn(`[flights] Failed for ${origin}->${dest} on ${date}:`, err);
+    console.warn(
+      `[flights] Failed RT ${origin}<->${dest} ${date}/${returnDate}:`,
+      err,
+    );
     return null;
   }
 }
@@ -214,6 +234,8 @@ export type SearchFlightsOptions = {
   dest?: string;
   days?: number;
   every?: number;
+  /** Nights at destination before return (default 7). */
+  stayDays?: number;
   currency?: string;
   concurrency?: number;
   bypassCache?: boolean;
@@ -226,10 +248,14 @@ export async function searchFlights(
   const dest = (options.dest ?? "IST").toUpperCase().trim();
   const days = Math.min(Math.max(options.days ?? 60, 7), 90);
   const every = Math.min(Math.max(options.every ?? 3, 1), 14);
+  const stayDays = Math.min(
+    Math.max(options.stayDays ?? DEFAULT_STAY_DAYS, 3),
+    28,
+  );
   const currency = asCurrency(options.currency ?? DEFAULT_CURRENCY);
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
 
-  const cacheKey = `v2|${origin}|${dest}|${days}|${every}|${currency}`;
+  const cacheKey = `v3-rt|${origin}|${dest}|${days}|${every}|${stayDays}|${currency}`;
   if (!options.bypassCache) {
     const hit = cache.get(cacheKey);
     if (hit && hit.expiresAt > Date.now()) {
@@ -240,7 +266,8 @@ export async function searchFlights(
   const dates = sampleDates(days, every);
   const perDate = await mapPool(dates, concurrency, async (date, index) => {
     if (index > 0) await jitter(200);
-    return searchDate(origin, dest, date, currency);
+    const returnDate = addDays(date, stayDays);
+    return searchDate(origin, dest, date, returnDate, currency);
   });
 
   const cheapestPerDate = perDate
@@ -255,6 +282,7 @@ export async function searchFlights(
     origin,
     dest,
     currency,
+    stayDays,
     sampledDates: dates.length,
     cheapestPerDate,
     topOffers,

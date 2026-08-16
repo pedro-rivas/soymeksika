@@ -70,6 +70,39 @@ export function pointAlongLine(
     a[0] + (b[0] - a[0]) * f,
     a[1] + (b[1] - a[1]) * f,
   ];
-  const bearing = Math.atan2(b[0] - a[0], b[1] - a[1]) * RAD;
+
+  // Look ahead a few samples so bearing stays stable on dense arcs.
+  const look = Math.min(line.length - 1, i + 4);
+  const ahead = line[look];
+  const bearing = Math.atan2(ahead[0] - a[0], ahead[1] - a[1]) * RAD;
   return { lngLat, bearing };
+}
+
+/**
+ * Progress fractions (0..1) along `line` for each airport, by nearest vertex.
+ * Origin is always ~0, destination ~1.
+ */
+export function airportFractions(
+  line: [number, number][],
+  airportsLngLat: [number, number][],
+): number[] {
+  if (line.length < 2 || airportsLngLat.length === 0) return [];
+
+  return airportsLngLat.map((airport, airportIndex) => {
+    if (airportIndex === 0) return 0;
+    if (airportIndex === airportsLngLat.length - 1) return 1;
+
+    let bestIdx = 0;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < line.length; i++) {
+      const dx = line[i][0] - airport[0];
+      const dy = line[i][1] - airport[1];
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx / (line.length - 1);
+  });
 }

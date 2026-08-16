@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     const dest = parseAirport(searchParams.get("dest"), "IST");
     const days = parsePositiveInt(searchParams.get("days"), 60, 7, 90);
     const every = parsePositiveInt(searchParams.get("every"), 3, 1, 14);
+    const stayDays = parsePositiveInt(searchParams.get("stayDays"), 7, 3, 28);
     const format = searchParams.get("format") === "raw" ? "raw" : "llm";
 
     if (origin === dest) {
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const result = await searchFlights({ origin, dest, days, every });
+    const result = await searchFlights({ origin, dest, days, every, stayDays });
     const summary =
       format === "llm" ? await summarizeFlights(result) : undefined;
 

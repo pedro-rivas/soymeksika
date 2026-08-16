@@ -3,9 +3,11 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { googleFlightsSearchUrl } from "../../lib/flights/googleUrl";
 
 type FlightOffer = {
   date: string;
+  returnDate?: string;
   price: number;
   currency: string;
   airline: string;
@@ -20,6 +22,7 @@ type FlightSearchResponse = {
   origin: string;
   dest: string;
   currency: string;
+  stayDays?: number;
   sampledDates: number;
   cheapestPerDate: FlightOffer[];
   topOffers: FlightOffer[];
@@ -55,6 +58,11 @@ function routeLabel(offer: FlightOffer, origin: string, dest: string): string {
   return codes.join(" → ");
 }
 
+function dateRangeLabel(offer: FlightOffer): string {
+  if (offer.returnDate) return `${offer.date} → ${offer.returnDate}`;
+  return offer.date;
+}
+
 function OfferCard({
   offer,
   origin,
@@ -74,10 +82,11 @@ function OfferCard({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-semibold">{formatPrice(offer)}</p>
-        <p className="text-sm text-zinc-500">{offer.date}</p>
+        <p className="text-sm text-zinc-500">{dateRangeLabel(offer)}</p>
       </div>
       <p className="mt-1 text-sm text-zinc-700">
-        {offer.airline} · {offer.duration} · {stopsLabel(offer.stops)}
+        Round-trip · {offer.airline} · outbound {offer.duration} ·{" "}
+        {stopsLabel(offer.stops)}
       </p>
       <div className="mt-1 flex items-center justify-between gap-2">
         <p className="text-xs text-zinc-500">
@@ -99,6 +108,12 @@ export default function FlightsPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<FlightSearchResponse | null>(null);
   const [selected, setSelected] = useState<FlightOffer | null>(null);
+  const [replayKey, setReplayKey] = useState(0);
+
+  const openRoute = useCallback((offer: FlightOffer) => {
+    setSelected(offer);
+    setReplayKey(0);
+  }, []);
 
   const onSubmit = useCallback(
     async (e: FormEvent) => {
@@ -121,6 +136,7 @@ export default function FlightsPage() {
         }
 
         setData(json);
+        setReplayKey(0);
       } catch (err) {
         setData(null);
         setError(err instanceof Error ? err.message : "Search failed");
@@ -160,8 +176,8 @@ export default function FlightsPage() {
               Cheap flights finder
             </h1>
             <p className="mt-1 text-sm text-zinc-600">
-              One-way prices over the next ~2 months. Tap a flight to watch the
-              route on the map.
+              Round-trip prices (~7-night stay) over the next ~2 months. Tap a
+              flight to watch the outbound route on the map.
             </p>
           </div>
           <Link
@@ -248,7 +264,7 @@ export default function FlightsPage() {
                         offer={offer}
                         origin={routeOrigin}
                         dest={routeDest}
-                        onOpen={setSelected}
+                        onOpen={openRoute}
                       />
                     </li>
                   ))}
@@ -264,8 +280,8 @@ export default function FlightsPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
                     <tr>
-                      <th className="px-3 py-2 font-medium">Date</th>
-                      <th className="px-3 py-2 font-medium">Price</th>
+                      <th className="px-3 py-2 font-medium">Dates</th>
+                      <th className="px-3 py-2 font-medium">Price (RT)</th>
                       <th className="px-3 py-2 font-medium">Airline</th>
                       <th className="hidden px-3 py-2 font-medium sm:table-cell">
                         Stops
@@ -277,9 +293,9 @@ export default function FlightsPage() {
                       <tr
                         key={offer.date}
                         className="cursor-pointer border-t border-zinc-100 transition hover:bg-zinc-50"
-                        onClick={() => setSelected(offer)}
+                        onClick={() => openRoute(offer)}
                       >
-                        <td className="px-3 py-2">{offer.date}</td>
+                        <td className="px-3 py-2">{dateRangeLabel(offer)}</td>
                         <td className="px-3 py-2 font-medium">
                           {formatPrice(offer)}
                         </td>
@@ -306,35 +322,77 @@ export default function FlightsPage() {
 
       {selected && (
         <div
-          className="fixed inset-0 z-[200000] flex flex-col bg-zinc-950/50 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[200000] flex flex-col bg-zinc-950/55 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-label="Flight route map"
         >
-          <div className="m-0 flex h-full w-full flex-col overflow-hidden bg-white sm:m-4 sm:h-[calc(100%-2rem)] sm:rounded-2xl sm:shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-zinc-900">
-                  {formatPrice(selected)} · {selected.airline}
-                </p>
-                <p className="truncate text-xs text-zinc-500">
-                  {selected.date} · {selected.departTime} → {selected.arriveTime}{" "}
-                  · {selected.duration} · {stopsLabel(selected.stops)}
-                </p>
-                <p className="mt-0.5 truncate text-xs font-medium tracking-wide text-sky-700">
-                  {routeLabel(selected, routeOrigin, routeDest)}
-                </p>
+          <div className="relative m-0 flex h-full w-full flex-col overflow-hidden bg-zinc-100 sm:m-4 sm:h-[calc(100%-2rem)] sm:rounded-2xl sm:shadow-2xl">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-3 sm:p-4">
+              <div className="pointer-events-auto mx-auto flex max-w-3xl items-start justify-between gap-3 rounded-2xl border border-white/60 bg-white/80 px-3 py-2.5 shadow-lg backdrop-blur-md sm:px-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-900">
+                    {formatPrice(selected)} · {selected.airline}
+                  </p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {dateRangeLabel(selected)} · {selected.departTime} →{" "}
+                    {selected.arriveTime} · outbound {selected.duration} ·{" "}
+                    {stopsLabel(selected.stops)}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {(selected.airports && selected.airports.length >= 2
+                      ? selected.airports
+                      : [routeOrigin, routeDest]
+                    ).map((code, i, arr) => (
+                      <span key={`${code}-${i}`} className="contents">
+                        <span className="inline-flex items-center rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
+                          {code}
+                        </span>
+                        {i < arr.length - 1 && (
+                          <span className="self-center text-[10px] text-zinc-400">
+                            →
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                  <a
+                    href={googleFlightsSearchUrl({
+                      origin: routeOrigin,
+                      dest: routeDest,
+                      date: selected.date,
+                      returnDate: selected.returnDate,
+                      currency: selected.currency,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+                  >
+                    Book on Google Flights
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setReplayKey((k) => k + 1)}
+                    className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-100"
+                  >
+                    Replay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-100"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="shrink-0 rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 transition hover:bg-zinc-100"
-              >
-                Close
-              </button>
             </div>
             <div className="relative min-h-0 flex-1">
               <FlightRouteMap
+                key={replayKey}
+                replayKey={replayKey}
                 airports={
                   selected.airports && selected.airports.length >= 2
                     ? selected.airports

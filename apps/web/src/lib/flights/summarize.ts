@@ -14,16 +14,16 @@ function formatOfferLine(offer: FlightOffer, rank?: number): string {
       : offer.stops === 1
         ? "1 stop"
         : `${offer.stops} stops`;
-  return `${prefix}${offer.date} — ${formatPrice(offer)} · ${offer.airline} · ${offer.duration} · ${stops} · ${offer.departTime}→${offer.arriveTime}`;
+  return `${prefix}${offer.date} → ${offer.returnDate} — ${formatPrice(offer)} · ${offer.airline} · outbound ${offer.duration} · ${stops} · ${offer.departTime}→${offer.arriveTime}`;
 }
 
 export function formatPlainSummary(result: FlightSearchResult): string {
   if (result.topOffers.length === 0) {
-    return `No flights found for ${result.origin} → ${result.dest} in the next ${result.sampledDates} sampled dates.`;
+    return `No round-trip flights found for ${result.origin} ⇄ ${result.dest} in the next ${result.sampledDates} sampled dates.`;
   }
 
   const lines = [
-    `Cheapest one-way options ${result.origin} → ${result.dest} (next ~2 months, currency ${result.currency}):`,
+    `Cheapest round-trip options ${result.origin} ⇄ ${result.dest} (${result.stayDays}-night stay, next ~2 months, currency ${result.currency}):`,
     "",
     ...result.topOffers.map((o, i) => formatOfferLine(o, i + 1)),
     "",
@@ -47,11 +47,11 @@ export async function summarizeFlights(
     const { text } = await generateText({
       model: openai("gpt-4o-mini"),
       system:
-        "You format flight search results into a short, friendly summary for a traveler. " +
-        "Lead with the absolute cheapest option, then mention 2–3 other good dates. " +
+        "You format round-trip flight search results into a short, friendly summary for a traveler. " +
+        "Prices are round-trip totals. Lead with the absolute cheapest option (include outbound and return dates), then mention 2–3 other good date pairs. " +
         "Keep it under 120 words. Use the exact prices and airlines given. No markdown headings.",
       prompt: [
-        `Route: ${result.origin} → ${result.dest}`,
+        `Route: ${result.origin} ⇄ ${result.dest} (round-trip, ${result.stayDays}-night stay)`,
         `Currency: ${result.currency}`,
         "Top offers (cheapest first):",
         ...result.topOffers.map((o, i) => formatOfferLine(o, i + 1)),
