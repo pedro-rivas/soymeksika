@@ -19,15 +19,18 @@ const CENTER: [number, number] = [-99.15, 19.4];
 const INITIAL_ZOOM = 3;
 const MIN_ZOOM = 3;
 
-/** Screenshot-matched palette (Apple Maps–like). Font glyphs: Noto Sans only. */
+/** Facebook-style biome palette. Font glyphs: Noto Sans only. */
 const STYLE = {
-  land: "#CDE9A3",
-  water: "#82D9FB",
+  land: "#B6F09E",
+  water: "#7CDCFD",
   waterway: "#A8E4FF",
+  sand: "#FFF9D1",
+  ice: "#F7FFFE",
+  grass: "#B8F19F",
+  wood: "#A8E88A",
   urban: "#F5F1E6",
   building: "#F0EBE3",
   park: "#E8F5E9",
-  wood: "#D4E8C8",
   border: "#B0B0B0",
   roadCasing: "#D5D5D5",
   roadInner: "#FFFFFF",
@@ -134,6 +137,36 @@ function setPaintIfExists(
   }
 }
 
+function addLandcoverLayer(
+  map: MapLibreMap,
+  id: string,
+  className: string,
+  color: string,
+  beforeId?: string,
+) {
+  if (map.getLayer(id) || !map.getSource("openmaptiles")) return;
+
+  map.addLayer(
+    {
+      id,
+      type: "fill",
+      source: "openmaptiles",
+      "source-layer": "landcover",
+      maxzoom: 14,
+      filter: [
+        "all",
+        ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false],
+        ["==", ["get", "class"], className],
+      ],
+      paint: {
+        "fill-color": color,
+        "fill-opacity": 1,
+      },
+    },
+    beforeId && map.getLayer(beforeId) ? beforeId : undefined,
+  );
+}
+
 function applyPastelBasemap(map: MapLibreMap) {
   setPaintIfExists(map, "background", "background-color", STYLE.land);
   setPaintIfExists(map, "water", "fill-color", STYLE.water);
@@ -141,11 +174,34 @@ function applyPastelBasemap(map: MapLibreMap) {
   setPaintIfExists(map, "landuse_residential", "fill-color", STYLE.urban);
   setPaintIfExists(map, "building", "fill-color", STYLE.building);
   setPaintIfExists(map, "park", "fill-color", STYLE.park);
+
+  // Ice (existing Positron layers + class=ice)
+  setPaintIfExists(map, "landcover_ice_shelf", "fill-color", STYLE.ice);
+  setPaintIfExists(map, "landcover_glacier", "fill-color", STYLE.ice);
   setPaintIfExists(map, "landcover_wood", "fill-color", STYLE.wood);
 
-  setPaintIfExists(map, "boundary_2", "line-color", STYLE.border);
-  setPaintIfExists(map, "boundary_3", "line-color", STYLE.border);
-  setPaintIfExists(map, "boundary_disputed", "line-color", STYLE.border);
+  // Insert biome fills under water so oceans stay on top of landcover
+  const beforeWater = map.getLayer("water") ? "water" : undefined;
+  addLandcoverLayer(map, "landcover_sand", "sand", STYLE.sand, beforeWater);
+  addLandcoverLayer(map, "landcover_ice", "ice", STYLE.ice, beforeWater);
+  addLandcoverLayer(map, "landcover_grass", "grass", STYLE.grass, beforeWater);
+  setPaintIfExists(map, "landcover_wood", "fill-color", STYLE.wood);
+
+  // Soften borders for a flatter Facebook-like look
+  for (const id of ["boundary_2", "boundary_3", "boundary_disputed"]) {
+    setPaintIfExists(map, id, "line-color", STYLE.border);
+    setPaintIfExists(map, id, "line-opacity", [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      3,
+      0.15,
+      6,
+      0.35,
+      10,
+      0.55,
+    ]);
+  }
 
   for (const id of [
     "highway_major_casing",
