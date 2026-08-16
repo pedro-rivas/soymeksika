@@ -32,6 +32,10 @@ import {
 } from "../lib/animations/countryHighlight";
 import AnimationPanel from "./AnimationPanel";
 import CountryNameTitle from "./CountryNameTitle";
+import {
+  DEFAULT_TITLE_STYLE,
+  type TitleStyleId,
+} from "../lib/animations/titleStyles";
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
@@ -210,6 +214,8 @@ export default function Map({
   const countriesDataRef = useRef<CountryCollection | null>(null);
   const [countries, setCountries] = useState<CountrySummary[]>([]);
   const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
+  const [titleStyle, setTitleStyle] =
+    useState<TitleStyleId>(DEFAULT_TITLE_STYLE);
   const [phase, setPhase] = useState<HighlightPhase>("idle");
 
   useEffect(() => {
@@ -447,13 +453,19 @@ export default function Map({
         style={{ height: "100%", width: "100%" }}
       />
       {enableAnimations && showAnimationPanel && titleName && (
-        <CountryNameTitle name={titleName} exiting={phase === "closing"} />
+        <CountryNameTitle
+          name={titleName}
+          style={titleStyle}
+          exiting={phase === "closing"}
+        />
       )}
       {enableAnimations && showAnimationPanel && (
         <AnimationPanel
           countries={countries}
           selected={selectedCountry}
           onSelect={setSelectedCountry}
+          titleStyle={titleStyle}
+          onTitleStyleChange={setTitleStyle}
           phase={phase}
           onPlay={handlePlay}
           onStop={handleStop}

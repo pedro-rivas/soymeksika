@@ -66,7 +66,9 @@ function animate(
         resolve();
         return;
       }
-      const t = Math.min(1, (now - start) / durationMs);
+      // rAF timestamps can slightly predate `start`, so clamp both ends —
+      // MapLibre rejects opacity values a few nanoseconds outside [0, 1].
+      const t = Math.min(1, Math.max(0, (now - start) / durationMs));
       onFrame(t);
       if (t < 1) requestAnimationFrame(step);
       else resolve();
