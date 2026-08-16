@@ -241,12 +241,12 @@ async function highlightIn(
         "fill-opacity",
         lerp(0, maxFill, t),
       );
+      map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(0, 1, t));
+      map.setPaintProperty(COUNTRY_LAYERS.line, "line-width", lerp(1.4, 2.2, t));
+      map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0, 0.22, t));
+      map.setPaintProperty(COUNTRY_LAYERS.glow, "line-width", lerp(4, 9, t));
+      map.setPaintProperty(COUNTRY_LAYERS.glow, "line-blur", lerp(2, 6, t));
     }
-    map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(0, 1, t));
-    map.setPaintProperty(COUNTRY_LAYERS.line, "line-width", lerp(1.4, 2.2, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0, 0.22, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-width", lerp(4, 9, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-blur", lerp(2, 6, t));
   });
 
   await Promise.all([dimRamp, fillRamp]);
@@ -278,9 +278,9 @@ async function closeOut(
         "fill-opacity",
         lerp(startFill, 0, t),
       );
+      map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(1, 0, t));
+      map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0.22, 0, t));
     }
-    map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(1, 0, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0.22, 0, t));
     map.setPaintProperty(COUNTRY_LAYERS.dim, "fill-opacity", lerp(0.32, 0, t));
   });
 }
