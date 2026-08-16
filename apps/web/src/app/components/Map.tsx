@@ -5,11 +5,16 @@ import {
   Map as MapLibreMap,
   Marker,
   NavigationControl,
-  Popup,
   setWorkerUrl,
 } from "maplibre-gl";
-import type { ExpressionSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import {
+  SOCIAL_LABELS,
+  SOCIAL_PLATFORMS,
+  type Pin,
+} from "../lib/pins";
+import { SOCIAL_ICON_SVG } from "./socialIcons";
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
@@ -53,19 +58,6 @@ const SPANISH_NAME: ExpressionSpecification = [
   ["get", "name"],
 ];
 
-const PINS = [
-  {
-    id: "zocalo",
-    name: "Zócalo / Centro Histórico",
-    lngLat: [-99.1332, 19.4326] as [number, number],
-  },
-  {
-    id: "coyoacan",
-    name: "Coyoacán (Frida Kahlo Museum)",
-    lngLat: [-99.1625, 19.3551] as [number, number],
-  },
-];
-
 const PIN_SVG = `
   <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -78,12 +70,80 @@ const PIN_SVG = `
   </svg>
 `;
 
-function createPinElement(title: string) {
-  const el = document.createElement("div");
-  el.className = "custom-map-pin";
-  el.title = title;
-  el.innerHTML = PIN_SVG;
-  return el;
+function createPinTooltipContent(pin: Pin) {
+  const root = document.createElement("div");
+  root.className = "pin-tooltip-inner";
+
+  if (pin.name) {
+    const title = document.createElement("div");
+    title.className = "pin-tooltip-title";
+    title.textContent = pin.name;
+    root.appendChild(title);
+  }
+
+  const links = SOCIAL_PLATFORMS.filter((p) => pin.links[p]);
+  if (links.length > 0) {
+    const row = document.createElement("div");
+    row.className = "pin-tooltip-links";
+    for (const platform of links) {
+      const href = pin.links[platform]!;
+      const a = document.createElement("a");
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.className = "pin-tooltip-link";
+      const label = pin.name
+        ? `${pin.name} on ${SOCIAL_LABELS[platform]}`
+        : SOCIAL_LABELS[platform];
+      a.setAttribute("aria-label", label);
+      // Keep link clicks from toggling the wrap open/closed
+      a.addEventListener("click", (e) => e.stopPropagation());
+      a.innerHTML = SOCIAL_ICON_SVG[platform];
+      row.appendChild(a);
+    }
+    root.appendChild(row);
+  }
+
+  return root;
+}
+
+function closeOpenPinTooltips(except?: HTMLElement) {
+  document.querySelectorAll(".pin-wrap.is-open").forEach((node) => {
+    if (except && node === except) return;
+    node.classList.remove("is-open");
+  });
+}
+
+function createPinElement(pin: Pin) {
+  const wrap = document.createElement("div");
+  wrap.className = "pin-wrap";
+  wrap.tabIndex = 0;
+  if (pin.name) wrap.setAttribute("aria-label", pin.name);
+  else wrap.setAttribute("aria-label", "Video pin");
+
+  const pinEl = document.createElement("div");
+  pinEl.className = "custom-map-pin";
+  pinEl.innerHTML = PIN_SVG;
+
+  const tooltip = document.createElement("div");
+  tooltip.className = "pin-tooltip";
+  tooltip.appendChild(createPinTooltipContent(pin));
+
+  wrap.appendChild(tooltip);
+  wrap.appendChild(pinEl);
+
+  wrap.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !wrap.classList.contains("is-open");
+    closeOpenPinTooltips(wrap);
+    wrap.classList.toggle("is-open", willOpen);
+  });
+
+  return wrap;
+}
+
+function clearMarkers(markers: Marker[]) {
+  for (const marker of markers) marker.remove();
 }
 
 function setZoomRange(
@@ -403,10 +463,29 @@ function applyLabelHierarchy(map: MapLibreMap) {
   }
 }
 
-export default function Map() {
+export type MapProps = {
+  pins: Pin[];
+  picking?: boolean;
+  onMapClick?: (lngLat: [number, number]) => void;
+};
+
+export default function Map({ pins, picking = false, onMapClick }: MapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  const onMapClickRef = useRef(onMapClick);
+  const pickingRef = useRef(picking);
+
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
+
+  useEffect(() => {
+    pickingRef.current = picking;
+    const map = mapRef.current;
+    if (!map) return;
+    map.getCanvas().style.cursor = picking ? "crosshair" : "";
+  }, [picking]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -427,18 +506,18 @@ export default function Map() {
       } catch (err) {
         console.error("Failed to apply map label hierarchy", err);
       }
-
       map.resize();
+    };
 
-      markersRef.current = PINS.map((pin) =>
-        new Marker({ element: createPinElement(pin.name), anchor: "bottom" })
-          .setLngLat(pin.lngLat)
-          .setPopup(new Popup({ offset: 28 }).setText(pin.name))
-          .addTo(map),
-      );
+    const handleClick = (e: MapMouseEvent) => {
+      // Dismiss open pin tooltips when clicking the map (not a pin)
+      closeOpenPinTooltips();
+      if (!pickingRef.current) return;
+      onMapClickRef.current?.([e.lngLat.lng, e.lngLat.lat]);
     };
 
     map.on("load", onLoad);
+    map.on("click", handleClick);
     map.on("error", (e) => {
       console.error("MapLibre error", e.error ?? e);
     });
@@ -447,17 +526,41 @@ export default function Map() {
 
     return () => {
       map.off("load", onLoad);
-      for (const marker of markersRef.current) marker.remove();
+      map.off("click", handleClick);
+      clearMarkers(markersRef.current);
       markersRef.current = [];
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyMarkers = () => {
+      clearMarkers(markersRef.current);
+      markersRef.current = pins.map((pin) =>
+        new Marker({ element: createPinElement(pin), anchor: "bottom" })
+          .setLngLat(pin.lngLat)
+          .addTo(map),
+      );
+    };
+
+    if (map.isStyleLoaded()) {
+      applyMarkers();
+    } else {
+      map.once("load", applyMarkers);
+      return () => {
+        map.off("load", applyMarkers);
+      };
+    }
+  }, [pins]);
+
   return (
     <div
       ref={containerRef}
-      className="h-full w-full"
+      className={`h-full w-full${picking ? " map-picking" : ""}`}
       style={{ height: "100%", width: "100%" }}
     />
   );

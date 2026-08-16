@@ -1,0 +1,29 @@
+[
+  {
+    "id": "7eaed4b5-f7cf-433f-b2e4-b71deb922815",
+    "name": "",
+    "lngLat": [
+      30.451977075699403,
+      39.78062478232417
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7671271939503115540",
+      "facebook": "https://www.facebook.com/reel/909303511698673"
+    },
+    "createdAt": "2026-08-16T11:03:00.000Z"
+  },
+  {
+    "id": "a6968d2c-e2bb-46d6-b48b-4f029f7bb28a",
+    "name": "",
+    "lngLat": [
+      30.451491775406055,
+      39.78792087221032
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7673117855163976976",
+      "facebook": "https://www.facebook.com/reel/1611671096956952",
+      "instagram": "https://www.instagram.com/p/Db8ezSlAVyZ/"
+    },
+    "createdAt": "2026-08-16T11:09:38.562Z"
+  }
+]
