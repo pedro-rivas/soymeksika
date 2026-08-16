@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   createPin,
   deletePin,
@@ -23,6 +24,12 @@ const Map = dynamic(() => import("./Map"), {
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
+const DEV_PILL =
+  "rounded-full border border-zinc-300 bg-white/95 px-3 py-1.5 text-sm font-medium text-zinc-800 shadow-sm backdrop-blur transition hover:bg-zinc-100";
+
+const DEV_PILL_ACTIVE =
+  "rounded-full border border-zinc-900 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800";
+
 export default function MapLoader() {
   const [pins, setPins] = useState<Pin[]>([]);
   const [pinsReady, setPinsReady] = useState(false);
@@ -31,6 +38,8 @@ export default function MapLoader() {
   const [draftLngLat, setDraftLngLat] = useState<[number, number] | null>(null);
   const [focusTarget, setFocusTarget] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [animationsOpen, setAnimationsOpen] = useState(true);
+  const animationControlsRef = useRef<{ stop: () => void } | null>(null);
 
   const refreshPins = useCallback(async () => {
     try {
@@ -91,6 +100,20 @@ export default function MapLoader() {
     await refreshPins();
   };
 
+  const handleAnimationControls = useCallback(
+    (controls: { stop: () => void } | null) => {
+      animationControlsRef.current = controls;
+    },
+    [],
+  );
+
+  const toggleAnimations = () => {
+    setAnimationsOpen((open) => {
+      if (open) animationControlsRef.current?.stop();
+      return !open;
+    });
+  };
+
   if (!pinsReady) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-zinc-100 text-zinc-600">
@@ -107,17 +130,29 @@ export default function MapLoader() {
         onMapClick={handleMapClick}
         draftLngLat={draftLngLat}
         focusTarget={focusTarget}
+        enableAnimations={IS_DEV}
+        showAnimationPanel={IS_DEV && animationsOpen}
+        onAnimationControls={handleAnimationControls}
       />
 
       {IS_DEV && (
         <>
-          <button
-            type="button"
-            onClick={openModal}
-            className="fixed bottom-4 left-4 z-[100000] rounded-md bg-black px-3 py-2 text-sm font-medium text-white shadow-md transition hover:bg-zinc-800"
-          >
-            Add pin
-          </button>
+          <div className="fixed bottom-3 right-3 z-[100000] flex flex-col items-end gap-2">
+            <button
+              type="button"
+              aria-pressed={animationsOpen}
+              onClick={toggleAnimations}
+              className={animationsOpen ? DEV_PILL_ACTIVE : DEV_PILL}
+            >
+              Animations
+            </button>
+            <button type="button" onClick={openModal} className={DEV_PILL}>
+              Pin
+            </button>
+            <Link href="/flights" className={DEV_PILL}>
+              Vuelos
+            </Link>
+          </div>
 
           {modalOpen && (
             <AddPinModal
@@ -133,7 +168,7 @@ export default function MapLoader() {
       )}
 
       {error && (
-        <p className="pointer-events-none fixed bottom-4 right-4 z-[100000] rounded-md bg-red-600 px-3 py-2 text-sm text-white">
+        <p className="pointer-events-none fixed bottom-4 left-4 z-[100000] rounded-md bg-red-600 px-3 py-2 text-sm text-white">
           {error}
         </p>
       )}

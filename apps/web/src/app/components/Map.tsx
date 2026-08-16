@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Map as MapLibreMap,
   Marker,
@@ -17,11 +17,26 @@ import {
 import { initialViewFromPins } from "../lib/mapView";
 import { STYLE, STYLE_URL, applyHomeMapStyle } from "../lib/mapStyle";
 import { SOCIAL_ICON_SVG } from "./socialIcons";
+import {
+  findCountry,
+  listCountries,
+  loadCountries,
+  type CountryCollection,
+  type CountrySummary,
+} from "../lib/countries";
+import {
+  COUNTRY_LAYERS,
+  CountryHighlightPlayer,
+  installCountryLayers,
+  type HighlightPhase,
+} from "../lib/animations/countryHighlight";
+import AnimationPanel from "./AnimationPanel";
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const TOOLTIP_MIN_ZOOM = 10;
+const DEFAULT_COUNTRY = "Mexico";
 const PIN_SVG = `
   <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -159,6 +174,12 @@ export type MapProps = {
   onMapClick?: (lngLat: [number, number]) => void;
   draftLngLat?: [number, number] | null;
   focusTarget?: [number, number] | null;
+  /** Dev-only: load country layers + highlight player. */
+  enableAnimations?: boolean;
+  /** Dev-only: show the Travel Animations panel. */
+  showAnimationPanel?: boolean;
+  /** Dev-only: parent can stop an in-flight highlight (e.g. panel toggle). */
+  onAnimationControls?: (controls: { stop: () => void } | null) => void;
 };
 
 export default function Map({
@@ -167,6 +188,9 @@ export default function Map({
   onMapClick,
   draftLngLat = null,
   focusTarget = null,
+  enableAnimations = false,
+  showAnimationPanel = false,
+  onAnimationControls,
 }: MapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -176,6 +200,11 @@ export default function Map({
   const pickingRef = useRef(picking);
   // Capture initial camera once so later pin add/delete does not re-center.
   const initialViewRef = useRef(initialViewFromPins(pins));
+  const playerRef = useRef<CountryHighlightPlayer | null>(null);
+  const countriesDataRef = useRef<CountryCollection | null>(null);
+  const [countries, setCountries] = useState<CountrySummary[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
+  const [phase, setPhase] = useState<HighlightPhase>("idle");
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -190,6 +219,7 @@ export default function Map({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    let cancelled = false;
 
     const { center, zoom } = initialViewRef.current;
     const map = new MapLibreMap({
@@ -216,6 +246,33 @@ export default function Map({
       }
       map.resize();
       syncTooltipZoomGate();
+
+      if (enableAnimations) {
+        loadCountries()
+          .then((data) => {
+            if (cancelled) return;
+            countriesDataRef.current = data;
+            installCountryLayers(map, data);
+            setCountries(listCountries(data));
+
+            map.on("click", COUNTRY_LAYERS.hit, (e) => {
+              if (pickingRef.current) return;
+              const name = e.features?.[0]?.properties?.NAME;
+              if (typeof name === "string" && name.length > 0) {
+                setSelectedCountry(name);
+              }
+            });
+            map.on("mouseenter", COUNTRY_LAYERS.hit, () => {
+              if (!pickingRef.current) map.getCanvas().style.cursor = "pointer";
+            });
+            map.on("mouseleave", COUNTRY_LAYERS.hit, () => {
+              map.getCanvas().style.cursor = pickingRef.current
+                ? "crosshair"
+                : "";
+            });
+          })
+          .catch((err) => console.error("Failed to load country data", err));
+      }
     };
 
     const handleClick = (e: MapMouseEvent) => {
@@ -237,6 +294,9 @@ export default function Map({
     syncTooltipZoomGate();
 
     return () => {
+      cancelled = true;
+      playerRef.current?.stop();
+      playerRef.current = null;
       map.off("load", onLoad);
       map.off("zoom", syncTooltipZoomGate);
       map.off("zoomend", syncTooltipZoomGate);
@@ -248,6 +308,8 @@ export default function Map({
       map.remove();
       mapRef.current = null;
     };
+    // enableAnimations is a stable mount-time flag (NODE_ENV); do not re-init the map.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -343,11 +405,47 @@ export default function Map({
     };
   }, []);
 
+  const handlePlay = useCallback(() => {
+    const map = mapRef.current;
+    const data = countriesDataRef.current;
+    if (!map || !data) return;
+    const feature = findCountry(data, selectedCountry);
+    if (!feature) return;
+    if (!playerRef.current) playerRef.current = new CountryHighlightPlayer();
+    void playerRef.current.play(map, feature, setPhase);
+  }, [selectedCountry]);
+
+  const handleStop = useCallback(() => {
+    playerRef.current?.stop(mapRef.current ?? undefined);
+    setPhase("idle");
+  }, []);
+
+  useEffect(() => {
+    if (!enableAnimations) {
+      onAnimationControls?.(null);
+      return;
+    }
+    onAnimationControls?.({ stop: handleStop });
+    return () => onAnimationControls?.(null);
+  }, [enableAnimations, handleStop, onAnimationControls]);
+
   return (
-    <div
-      ref={containerRef}
-      className={`h-full w-full${picking ? " map-picking" : ""}`}
-      style={{ height: "100%", width: "100%" }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className={`h-full w-full${picking ? " map-picking" : ""}`}
+        style={{ height: "100%", width: "100%" }}
+      />
+      {enableAnimations && showAnimationPanel && (
+        <AnimationPanel
+          countries={countries}
+          selected={selectedCountry}
+          onSelect={setSelectedCountry}
+          phase={phase}
+          onPlay={handlePlay}
+          onStop={handleStop}
+        />
+      )}
+    </>
   );
 }
