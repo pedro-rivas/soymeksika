@@ -53,5 +53,17 @@
       "instagram": "https://www.instagram.com/p/DavC2kxgQf5/"
     },
     "createdAt": "2026-08-16T11:28:13.494Z"
+  },
+  {
+    "id": "a0533b47-c31a-4eca-9875-5bfe169b5ff6",
+    "name": "Aveiro",
+    "lngLat": [
+      -8.649905445089558,
+      40.64181663272964
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7655423021754191124"
+    },
+    "createdAt": "2026-08-16T11:49:33.696Z"
   }
 ]

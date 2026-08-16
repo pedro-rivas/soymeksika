@@ -157,7 +157,11 @@ function createPinElement(pin: Pin, getMap: () => MapLibreMap | null) {
     const map = getMap();
     if (map && map.getZoom() < TOOLTIP_MIN_ZOOM) {
       closeOpenPinTooltips();
-      map.easeTo({ center: pin.lngLat, zoom: TOOLTIP_MIN_ZOOM });
+      map.easeTo({
+        center: pin.lngLat,
+        zoom: TOOLTIP_MIN_ZOOM,
+        duration: 1200,
+      });
       return;
     }
     const willOpen = !wrap.classList.contains("is-open");
