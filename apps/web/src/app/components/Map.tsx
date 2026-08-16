@@ -497,7 +497,7 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
       style: STYLE_URL,
       center,
       zoom,
-      attributionControl: { compact: true },
+      attributionControl: false,
     });
 
     map.addControl(new NavigationControl({ showCompass: false }), "top-left");

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "soyMeksika",
-  description: "Fullscreen OpenStreetMap of Mexico City",
+  title: "Soy Meksika",
+  description: "Encuentra to próximo destino de tus viajes",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

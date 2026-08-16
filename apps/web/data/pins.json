@@ -25,5 +25,33 @@
       "instagram": "https://www.instagram.com/p/Db8ezSlAVyZ/"
     },
     "createdAt": "2026-08-16T11:09:38.562Z"
+  },
+  {
+    "id": "5cf6632c-380f-40f1-8035-6d44c9b0f766",
+    "name": "Mezquita de Suleiman",
+    "lngLat": [
+      28.96406779656627,
+      41.01614832365178
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7661388357443898642",
+      "facebook": "https://www.facebook.com/reel/1049117218077602",
+      "instagram": "https://www.instagram.com/p/Daqxi_dAW3g/"
+    },
+    "createdAt": "2026-08-16T11:25:42.069Z"
+  },
+  {
+    "id": "d90c1d56-86cf-4a77-b577-fb9bf0ea146c",
+    "name": "Gran Bazar",
+    "lngLat": [
+      28.968519753187223,
+      41.010661065855544
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7662004931355954440",
+      "facebook": "https://www.facebook.com/reel/1677318556894468",
+      "instagram": "https://www.instagram.com/p/DavC2kxgQf5/"
+    },
+    "createdAt": "2026-08-16T11:28:13.494Z"
   }
 ]

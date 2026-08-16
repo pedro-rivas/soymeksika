@@ -12,7 +12,7 @@ export default function SocialLinks() {
   return (
     <nav
       aria-label="Social media"
-      className="pointer-events-none fixed top-3 right-3 z-[100000] flex items-center gap-2"
+      className="pointer-events-none fixed bottom-3 left-1/2 z-[100000] flex -translate-x-1/2 items-center gap-2"
     >
       {SOCIAL_PLATFORMS.map((platform) => (
         <a
