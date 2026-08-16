@@ -16,8 +16,8 @@ setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const CENTER: [number, number] = [-99.15, 19.4];
-const INITIAL_ZOOM = 3;
-const MIN_ZOOM = 3;
+const INITIAL_ZOOM = 2;
+const MIN_ZOOM = 2;
 
 /** Facebook-style biome palette. Font glyphs: Noto Sans only. */
 const STYLE = {
@@ -248,11 +248,26 @@ function applyLabelStyles(map: MapLibreMap) {
       "interpolate",
       ["exponential", 1.2],
       ["zoom"],
+      3,
+      11,
       7,
       14,
       11,
       22,
     ]);
+    // Hollow circle to the left of the name (screenshot style)
+    map.setLayoutProperty("label_city_capital", "icon-image", [
+      "step",
+      ["zoom"],
+      "circle_11_black",
+      9,
+      "",
+    ]);
+    map.setLayoutProperty("label_city_capital", "icon-size", 0.45);
+    map.setLayoutProperty("label_city_capital", "icon-allow-overlap", true);
+    map.setLayoutProperty("label_city_capital", "text-anchor", "left");
+    map.setLayoutProperty("label_city_capital", "text-offset", [0.6, 0]);
+    map.setLayoutProperty("label_city_capital", "text-justify", "left");
   }
   if (map.getLayer("label_city")) {
     map.setLayoutProperty("label_city", "text-size", [
@@ -326,13 +341,13 @@ function addContinentLabels(map: MapLibreMap) {
     source: "openmaptiles",
     "source-layer": "place",
     filter: ["==", ["get", "class"], "continent"],
-    minzoom: 3,
+    minzoom: 2,
     maxzoom: 5,
     layout: {
       "text-field": SPANISH_NAME,
       "text-font": ["Noto Sans Bold"],
       "text-transform": "uppercase",
-      "text-size": ["interpolate", ["linear"], ["zoom"], 3, 20, 4.5, 24],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 2, 18, 4.5, 24],
       "text-max-width": 10,
       "text-letter-spacing": 0.16,
       "text-allow-overlap": false,
@@ -354,7 +369,7 @@ function applyLabelHierarchy(map: MapLibreMap) {
   applyLabelStyles(map);
   addContinentLabels(map);
 
-  setZoomRange(map, "label_continent", 3, 5);
+  setZoomRange(map, "label_continent", 2, 5);
 
   // Countries appear as continents fade out
   setZoomRange(map, "label_country_1", 4.5, 9);
@@ -363,7 +378,7 @@ function applyLabelHierarchy(map: MapLibreMap) {
 
   setZoomRange(map, "label_state", 6, 8);
 
-  setZoomRange(map, "label_city_capital", 7, 22);
+  setZoomRange(map, "label_city_capital", 3, 22);
   setZoomRange(map, "label_city", 7.5, 22);
 
   setZoomRange(map, "label_town", 10, 22);
