@@ -61,7 +61,8 @@ export default function Map() {
   return (
     <MapContainer
       center={[19.4, -99.15]}
-      zoom={12}
+      zoom={3}
+      minZoom={3}
       scrollWheelZoom={true}
       className="h-full w-full"
       style={{ height: "100%", width: "100%" }}
