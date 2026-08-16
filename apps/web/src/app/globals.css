@@ -85,9 +85,9 @@ body {
   border-top-color: rgba(255, 255, 255, 0.96);
 }
 
-.pin-wrap:hover .pin-tooltip,
-.pin-wrap:focus-within .pin-tooltip,
-.pin-wrap.is-open .pin-tooltip {
+.map-tooltips-enabled .pin-wrap:hover .pin-tooltip,
+.map-tooltips-enabled .pin-wrap:focus-within .pin-tooltip,
+.map-tooltips-enabled .pin-wrap.is-open .pin-tooltip {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
@@ -107,11 +107,13 @@ body {
   line-height: 1.3;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  text-align: center;
 }
 
 .pin-tooltip-links {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
 }
 

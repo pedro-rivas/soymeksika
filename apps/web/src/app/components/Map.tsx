@@ -21,6 +21,7 @@ import { SOCIAL_ICON_SVG } from "./socialIcons";
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+const TOOLTIP_MIN_ZOOM = 10;
 
 /** Facebook-style biome palette. Font glyphs: Noto Sans only. */
 const STYLE = {
@@ -69,6 +70,13 @@ const PIN_SVG = `
   </svg>
 `;
 
+const GOOGLE_MAPS_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>`;
+
+function googleMapsUrl(lngLat: [number, number]): string {
+  const [lng, lat] = lngLat;
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
 function createPinTooltipContent(pin: Pin) {
   const root = document.createElement("div");
   root.className = "pin-tooltip-inner";
@@ -80,28 +88,41 @@ function createPinTooltipContent(pin: Pin) {
     root.appendChild(title);
   }
 
+  const row = document.createElement("div");
+  row.className = "pin-tooltip-links";
+
   const links = SOCIAL_PLATFORMS.filter((p) => pin.links[p]);
-  if (links.length > 0) {
-    const row = document.createElement("div");
-    row.className = "pin-tooltip-links";
-    for (const platform of links) {
-      const href = pin.links[platform]!;
-      const a = document.createElement("a");
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.className = "pin-tooltip-link";
-      const label = pin.name
-        ? `${pin.name} on ${SOCIAL_LABELS[platform]}`
-        : SOCIAL_LABELS[platform];
-      a.setAttribute("aria-label", label);
-      // Keep link clicks from toggling the wrap open/closed
-      a.addEventListener("click", (e) => e.stopPropagation());
-      a.innerHTML = SOCIAL_ICON_SVG[platform];
-      row.appendChild(a);
-    }
-    root.appendChild(row);
+  for (const platform of links) {
+    const href = pin.links[platform]!;
+    const a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.className = "pin-tooltip-link";
+    const label = pin.name
+      ? `${pin.name} on ${SOCIAL_LABELS[platform]}`
+      : SOCIAL_LABELS[platform];
+    a.setAttribute("aria-label", label);
+    // Keep link clicks from toggling the wrap open/closed
+    a.addEventListener("click", (e) => e.stopPropagation());
+    a.innerHTML = SOCIAL_ICON_SVG[platform];
+    row.appendChild(a);
   }
+
+  const maps = document.createElement("a");
+  maps.href = googleMapsUrl(pin.lngLat);
+  maps.target = "_blank";
+  maps.rel = "noopener noreferrer";
+  maps.className = "pin-tooltip-link";
+  maps.setAttribute(
+    "aria-label",
+    pin.name ? `${pin.name} on Google Maps` : "Open in Google Maps",
+  );
+  maps.addEventListener("click", (e) => e.stopPropagation());
+  maps.innerHTML = GOOGLE_MAPS_ICON_SVG;
+  row.appendChild(maps);
+
+  root.appendChild(row);
 
   return root;
 }
@@ -113,7 +134,7 @@ function closeOpenPinTooltips(except?: HTMLElement) {
   });
 }
 
-function createPinElement(pin: Pin) {
+function createPinElement(pin: Pin, getMap: () => MapLibreMap | null) {
   const wrap = document.createElement("div");
   wrap.className = "pin-wrap";
   wrap.tabIndex = 0;
@@ -133,6 +154,12 @@ function createPinElement(pin: Pin) {
 
   wrap.addEventListener("click", (e) => {
     e.stopPropagation();
+    const map = getMap();
+    if (map && map.getZoom() < TOOLTIP_MIN_ZOOM) {
+      closeOpenPinTooltips();
+      map.easeTo({ center: pin.lngLat, zoom: TOOLTIP_MIN_ZOOM });
+      return;
+    }
     const willOpen = !wrap.classList.contains("is-open");
     closeOpenPinTooltips(wrap);
     wrap.classList.toggle("is-open", willOpen);
@@ -502,6 +529,12 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
 
     map.addControl(new NavigationControl({ showCompass: false }), "top-left");
 
+    const syncTooltipZoomGate = () => {
+      const enabled = map.getZoom() >= TOOLTIP_MIN_ZOOM;
+      map.getContainer().classList.toggle("map-tooltips-enabled", enabled);
+      if (!enabled) closeOpenPinTooltips();
+    };
+
     const onLoad = () => {
       try {
         applyLabelHierarchy(map);
@@ -509,6 +542,7 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
         console.error("Failed to apply map label hierarchy", err);
       }
       map.resize();
+      syncTooltipZoomGate();
     };
 
     const handleClick = (e: MapMouseEvent) => {
@@ -519,15 +553,20 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
     };
 
     map.on("load", onLoad);
+    map.on("zoom", syncTooltipZoomGate);
+    map.on("zoomend", syncTooltipZoomGate);
     map.on("click", handleClick);
     map.on("error", (e) => {
       console.error("MapLibre error", e.error ?? e);
     });
 
     mapRef.current = map;
+    syncTooltipZoomGate();
 
     return () => {
       map.off("load", onLoad);
+      map.off("zoom", syncTooltipZoomGate);
+      map.off("zoomend", syncTooltipZoomGate);
       map.off("click", handleClick);
       clearMarkers(markersRef.current);
       markersRef.current = [];
@@ -543,7 +582,10 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
     const applyMarkers = () => {
       clearMarkers(markersRef.current);
       markersRef.current = pins.map((pin) =>
-        new Marker({ element: createPinElement(pin), anchor: "bottom" })
+        new Marker({
+          element: createPinElement(pin, () => mapRef.current),
+          anchor: "bottom",
+        })
           .setLngLat(pin.lngLat)
           .addTo(map),
       );
