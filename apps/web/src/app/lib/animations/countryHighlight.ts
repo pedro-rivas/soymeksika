@@ -4,6 +4,12 @@ import type {
 } from "maplibre-gl";
 import type { CountryBounds, CountryCollection, CountryFeature } from "../countries";
 import { countryBounds } from "../countries";
+import {
+  hasFlagOverlay,
+  installFlagOverlay,
+  removeFlagOverlay,
+  setFlagOverlayOpacity,
+} from "./flagFill";
 
 export type HighlightPhase =
   | "idle"
@@ -12,6 +18,10 @@ export type HighlightPhase =
   | "naming"
   | "holding"
   | "closing";
+
+export type HighlightPlayOptions = {
+  fillWithFlag?: boolean;
+};
 
 export const COUNTRY_SOURCE_ID = "countries";
 
@@ -39,6 +49,8 @@ const NAME_MS = 700;
 const HOLD_MS = 900;
 const CLOSE_MS = 1100;
 const MAX_COUNTRY_ZOOM = 5.5;
+const FLAG_FILL_OPACITY = 0.92;
+const COLOR_FILL_OPACITY = 0.4;
 
 type GeoJSONSourceSpec = Extract<
   Parameters<MapLibreMap["addSource"]>[1],
@@ -162,6 +174,26 @@ function resetCountryLayers(map: MapLibreMap): void {
   map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", 0);
   map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", 0);
   map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", 0);
+  map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-color", COLORS.fill);
+  removeFlagOverlay(map);
+}
+
+async function applyFillStyle(
+  map: MapLibreMap,
+  feature: CountryFeature,
+  fillWithFlag: boolean,
+): Promise<boolean> {
+  removeFlagOverlay(map);
+  map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-color", COLORS.fill);
+  map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", 0);
+
+  if (!fillWithFlag) return false;
+
+  const iso =
+    typeof feature.properties.ISO_A2 === "string"
+      ? feature.properties.ISO_A2
+      : "";
+  return installFlagOverlay(map, feature, iso);
 }
 
 function flyToCountry(
@@ -183,7 +215,13 @@ function flyToCountry(
   });
 }
 
-async function highlightIn(map: MapLibreMap, token: StopToken): Promise<void> {
+async function highlightIn(
+  map: MapLibreMap,
+  token: StopToken,
+  useFlag: boolean,
+): Promise<void> {
+  const maxFill = useFlag ? FLAG_FILL_OPACITY : COLOR_FILL_OPACITY;
+
   const dimRamp = animate(DIM_MS, token, (t) => {
     map.setPaintProperty(
       COUNTRY_LAYERS.dim,
@@ -194,7 +232,16 @@ async function highlightIn(map: MapLibreMap, token: StopToken): Promise<void> {
 
   const fillRamp = animate(HIGHLIGHT_MS, token, (raw) => {
     const t = easeOutCubic(raw);
-    map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", lerp(0, 0.4, t));
+    if (useFlag && hasFlagOverlay(map)) {
+      setFlagOverlayOpacity(map, lerp(0, maxFill, t));
+      map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", 0);
+    } else {
+      map.setPaintProperty(
+        COUNTRY_LAYERS.fill,
+        "fill-opacity",
+        lerp(0, maxFill, t),
+      );
+    }
     map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(0, 1, t));
     map.setPaintProperty(COUNTRY_LAYERS.line, "line-width", lerp(1.4, 2.2, t));
     map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0, 0.22, t));
@@ -214,10 +261,24 @@ async function revealName(token: StopToken): Promise<void> {
   if (token.stopped) return;
 }
 
-async function closeOut(map: MapLibreMap, token: StopToken): Promise<void> {
+async function closeOut(
+  map: MapLibreMap,
+  token: StopToken,
+  useFlag: boolean,
+): Promise<void> {
+  const startFill = useFlag ? FLAG_FILL_OPACITY : COLOR_FILL_OPACITY;
+
   await animate(CLOSE_MS, token, (raw) => {
     const t = easeInOutCubic(raw);
-    map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", lerp(0.4, 0, t));
+    if (useFlag && hasFlagOverlay(map)) {
+      setFlagOverlayOpacity(map, lerp(startFill, 0, t));
+    } else {
+      map.setPaintProperty(
+        COUNTRY_LAYERS.fill,
+        "fill-opacity",
+        lerp(startFill, 0, t),
+      );
+    }
     map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(1, 0, t));
     map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0.22, 0, t));
     map.setPaintProperty(COUNTRY_LAYERS.dim, "fill-opacity", lerp(0.32, 0, t));
@@ -236,6 +297,7 @@ export class CountryHighlightPlayer {
     map: MapLibreMap,
     feature: CountryFeature,
     onPhase?: (phase: HighlightPhase) => void,
+    options?: HighlightPlayOptions,
   ): Promise<void> {
     this.stop(map);
     const token: StopToken = { stopped: false };
@@ -247,8 +309,11 @@ export class CountryHighlightPlayer {
     const name =
       typeof feature.properties.NAME === "string" ? feature.properties.NAME : "";
     const bounds = countryBounds(feature);
+    const wantFlag = options?.fillWithFlag === true;
 
     prepareLayers(map, name);
+    const useFlag = await applyFillStyle(map, feature, wantFlag);
+    if (token.stopped) return;
 
     try {
       if (bounds) {
@@ -258,7 +323,7 @@ export class CountryHighlightPlayer {
       }
 
       setPhase("highlighting");
-      await highlightIn(map, token);
+      await highlightIn(map, token, useFlag);
       if (token.stopped) return;
 
       setPhase("naming");
@@ -270,7 +335,7 @@ export class CountryHighlightPlayer {
       if (token.stopped) return;
 
       setPhase("closing");
-      await closeOut(map, token);
+      await closeOut(map, token, useFlag);
       if (token.stopped) return;
     } finally {
       if (this.token === token) this.token = null;

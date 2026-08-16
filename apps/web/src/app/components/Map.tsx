@@ -216,6 +216,7 @@ export default function Map({
   const [selectedCountry, setSelectedCountry] = useState(DEFAULT_COUNTRY);
   const [titleStyle, setTitleStyle] =
     useState<TitleStyleId>(DEFAULT_TITLE_STYLE);
+  const [fillWithFlag, setFillWithFlag] = useState(false);
   const [phase, setPhase] = useState<HighlightPhase>("idle");
 
   useEffect(() => {
@@ -424,8 +425,8 @@ export default function Map({
     const feature = findCountry(data, selectedCountry);
     if (!feature) return;
     if (!playerRef.current) playerRef.current = new CountryHighlightPlayer();
-    void playerRef.current.play(map, feature, setPhase);
-  }, [selectedCountry]);
+    void playerRef.current.play(map, feature, setPhase, { fillWithFlag });
+  }, [selectedCountry, fillWithFlag]);
 
   const handleStop = useCallback(() => {
     playerRef.current?.stop(mapRef.current ?? undefined);
@@ -466,6 +467,8 @@ export default function Map({
           onSelect={setSelectedCountry}
           titleStyle={titleStyle}
           onTitleStyleChange={setTitleStyle}
+          fillWithFlag={fillWithFlag}
+          onFillWithFlagChange={setFillWithFlag}
           phase={phase}
           onPlay={handlePlay}
           onStop={handleStop}

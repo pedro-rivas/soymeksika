@@ -25,6 +25,8 @@ interface AnimationPanelProps {
   onSelect: (name: string) => void;
   titleStyle: TitleStyleId;
   onTitleStyleChange: (style: TitleStyleId) => void;
+  fillWithFlag: boolean;
+  onFillWithFlagChange: (value: boolean) => void;
   phase: HighlightPhase;
   onPlay: () => void;
   onStop: () => void;
@@ -55,6 +57,8 @@ export default function AnimationPanel({
   onSelect,
   titleStyle,
   onTitleStyleChange,
+  fillWithFlag,
+  onFillWithFlagChange,
   phase,
   onPlay,
   onStop,
@@ -136,6 +140,27 @@ export default function AnimationPanel({
             <SelectChevron />
           </span>
         </label>
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            Fill with flag
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={fillWithFlag}
+            aria-label="Fill country with flag instead of color"
+            disabled={playing}
+            onClick={() => onFillWithFlagChange(!fillWithFlag)}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+              fillWithFlag
+                ? "border-zinc-100 bg-zinc-100 text-zinc-950 hover:bg-white"
+                : "border-white/15 bg-zinc-900 text-zinc-200 hover:border-white/30 hover:bg-zinc-800"
+            }`}
+          >
+            {fillWithFlag ? "On" : "Off"}
+          </button>
+        </div>
 
         <div className="flex items-center gap-3 pt-1">
           {playing ? (
