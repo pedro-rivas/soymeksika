@@ -14,14 +14,13 @@ import {
   SOCIAL_PLATFORMS,
   type Pin,
 } from "../lib/pins";
+import { initialViewFromPins } from "../lib/mapView";
 import { SOCIAL_ICON_SVG } from "./socialIcons";
 
 // Same-origin worker so Turbopack/Next can load vector tiles reliably.
 setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
-const CENTER: [number, number] = [-99.15, 19.4];
-const INITIAL_ZOOM = 2;
 
 /** Facebook-style biome palette. Font glyphs: Noto Sans only. */
 const STYLE = {
@@ -475,6 +474,8 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
   const markersRef = useRef<Marker[]>([]);
   const onMapClickRef = useRef(onMapClick);
   const pickingRef = useRef(picking);
+  // Capture initial camera once so later pin add/delete does not re-center.
+  const initialViewRef = useRef(initialViewFromPins(pins));
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -490,11 +491,12 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const { center, zoom } = initialViewRef.current;
     const map = new MapLibreMap({
       container: containerRef.current,
       style: STYLE_URL,
-      center: CENTER,
-      zoom: INITIAL_ZOOM,
+      center,
+      zoom,
       attributionControl: { compact: true },
     });
 

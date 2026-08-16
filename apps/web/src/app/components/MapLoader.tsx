@@ -24,6 +24,7 @@ const IS_DEV = process.env.NODE_ENV === "development";
 
 export default function MapLoader() {
   const [pins, setPins] = useState<Pin[]>([]);
+  const [pinsReady, setPinsReady] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [draftLngLat, setDraftLngLat] = useState<[number, number] | null>(null);
@@ -36,6 +37,8 @@ export default function MapLoader() {
     } catch (err) {
       console.error(err);
       setError("Could not load pins");
+    } finally {
+      setPinsReady(true);
     }
   }, []);
 
@@ -78,6 +81,14 @@ export default function MapLoader() {
     await deletePin(id);
     await refreshPins();
   };
+
+  if (!pinsReady) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-100 text-zinc-600">
+        Loading map…
+      </div>
+    );
+  }
 
   return (
     <>
