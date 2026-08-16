@@ -10,6 +10,7 @@ import {
   type PinLinks,
 } from "../lib/pins";
 import AddPinModal from "./AddPinModal";
+import type { PlaceResult } from "./PlaceSearch";
 
 const Map = dynamic(() => import("./Map"), {
   ssr: false,
@@ -28,6 +29,7 @@ export default function MapLoader() {
   const [modalOpen, setModalOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [draftLngLat, setDraftLngLat] = useState<[number, number] | null>(null);
+  const [focusTarget, setFocusTarget] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refreshPins = useCallback(async () => {
@@ -48,6 +50,7 @@ export default function MapLoader() {
 
   const openModal = () => {
     setDraftLngLat(null);
+    setFocusTarget(null);
     setPicking(true);
     setModalOpen(true);
     setError(null);
@@ -57,6 +60,7 @@ export default function MapLoader() {
     setModalOpen(false);
     setPicking(false);
     setDraftLngLat(null);
+    setFocusTarget(null);
   };
 
   const handleMapClick = useCallback(
@@ -66,6 +70,11 @@ export default function MapLoader() {
     },
     [picking],
   );
+
+  const handlePickLocation = useCallback((place: PlaceResult) => {
+    setDraftLngLat(place.lngLat);
+    setFocusTarget(place.lngLat);
+  }, []);
 
   const handleSave = async (input: {
     name: string;
@@ -96,6 +105,8 @@ export default function MapLoader() {
         pins={pins}
         picking={picking}
         onMapClick={handleMapClick}
+        draftLngLat={draftLngLat}
+        focusTarget={focusTarget}
       />
 
       {IS_DEV && (
@@ -115,6 +126,7 @@ export default function MapLoader() {
               onClose={closeModal}
               onSave={handleSave}
               onDelete={handleDelete}
+              onPickLocation={handlePickLocation}
             />
           )}
         </>

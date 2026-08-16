@@ -65,5 +65,17 @@
       "tiktok": "https://www.tiktok.com/@soymeksika/video/7655423021754191124"
     },
     "createdAt": "2026-08-16T11:49:33.696Z"
+  },
+  {
+    "id": "35abfae2-5e57-47d9-a8a6-9bd3b1f0f26b",
+    "name": "McDonald's Imperial",
+    "lngLat": [
+      -8.61098349053566,
+      41.14658542389927
+    ],
+    "links": {
+      "tiktok": "https://www.tiktok.com/@soymeksika/video/7659103603432410386"
+    },
+    "createdAt": "2026-08-16T12:01:47.315Z"
   }
 ]

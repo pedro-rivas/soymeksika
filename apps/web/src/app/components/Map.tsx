@@ -70,6 +70,19 @@ const PIN_SVG = `
   </svg>
 `;
 
+const DRAFT_PIN_SVG = `
+  <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M15 0C6.716 0 0 6.716 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.716 23.284 0 15 0z"
+      fill="#F59E0B"
+      stroke="#B45309"
+      stroke-width="1"
+      stroke-dasharray="3 2"
+    />
+    <circle cx="15" cy="14" r="5.5" fill="#FFFFFF"/>
+  </svg>
+`;
+
 const GOOGLE_MAPS_ICON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="20" height="20"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>`;
 
 function googleMapsUrl(lngLat: [number, number]): string {
@@ -184,11 +197,6 @@ function setZoomRange(
 ) {
   if (!map.getLayer(layerId)) return;
   map.setLayerZoomRange(layerId, minzoom, maxzoom);
-}
-
-function setVisibility(map: MapLibreMap, layerId: string, visible: boolean) {
-  if (!map.getLayer(layerId)) return;
-  map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
 }
 
 function applySpanishNames(map: MapLibreMap) {
@@ -449,6 +457,113 @@ function addContinentLabels(map: MapLibreMap) {
   });
 }
 
+const TOURIST_POI_FILTER: ExpressionSpecification = [
+  "all",
+  ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+  [
+    "any",
+    [
+      "match",
+      ["get", "class"],
+      ["attraction", "art_gallery", "castle", "zoo", "park", "stadium"],
+      true,
+      false,
+    ],
+    [
+      "match",
+      ["get", "subclass"],
+      [
+        "museum",
+        "attraction",
+        "viewpoint",
+        "theme_park",
+        "gallery",
+        "monument",
+        "memorial",
+        "artwork",
+        "castle",
+        "zoo",
+      ],
+      true,
+      false,
+    ],
+  ],
+];
+
+const TOURIST_POI_ICON: ExpressionSpecification = [
+  "match",
+  ["get", "subclass"],
+  [
+    "museum",
+    "viewpoint",
+    "theme_park",
+    "monument",
+    "memorial",
+    "artwork",
+    "gallery",
+  ],
+  ["get", "subclass"],
+  ["get", "class"],
+];
+
+function addTouristPoiLayer(
+  map: MapLibreMap,
+  id: string,
+  minzoom: number,
+  rankFilter: ExpressionSpecification,
+) {
+  if (map.getLayer(id) || !map.getSource("openmaptiles")) return;
+
+  map.addLayer({
+    id,
+    type: "symbol",
+    source: "openmaptiles",
+    "source-layer": "poi",
+    minzoom,
+    filter: ["all", TOURIST_POI_FILTER, rankFilter],
+    layout: {
+      "icon-image": TOURIST_POI_ICON,
+      "icon-size": 0.9,
+      "icon-optional": true,
+      "icon-allow-overlap": false,
+      "text-field": SPANISH_NAME,
+      "text-font": ["Noto Sans Regular"],
+      "text-size": 11,
+      "text-anchor": "top",
+      "text-offset": [0, 0.65],
+      "text-max-width": 9,
+      "text-optional": true,
+      "text-allow-overlap": false,
+    },
+    paint: {
+      "text-color": "#374151",
+      "text-halo-color": STYLE.halo,
+      "text-halo-width": 1.25,
+      "text-halo-blur": 0.5,
+    },
+  });
+}
+
+/** OSM tourist/landmark POIs — icons + names, denser as you zoom in. */
+function applyTouristPois(map: MapLibreMap) {
+  // Lower rank = more important within the tile grid
+  addTouristPoiLayer(map, "tourist_poi_important", 12, [
+    "all",
+    [">=", ["get", "rank"], 1],
+    ["<", ["get", "rank"], 7],
+  ]);
+  addTouristPoiLayer(map, "tourist_poi_mid", 14, [
+    "all",
+    [">=", ["get", "rank"], 7],
+    ["<", ["get", "rank"], 20],
+  ]);
+  addTouristPoiLayer(map, "tourist_poi_dense", 16, [
+    ">=",
+    ["get", "rank"],
+    20,
+  ]);
+}
+
 /**
  * Progressive labels: continent → country → city → town → neighborhood/POI
  */
@@ -457,6 +572,7 @@ function applyLabelHierarchy(map: MapLibreMap) {
   applySpanishNames(map);
   applyLabelStyles(map);
   addContinentLabels(map);
+  applyTouristPois(map);
 
   setZoomRange(map, "label_continent", 2, 5);
 
@@ -486,23 +602,27 @@ function applyLabelHierarchy(map: MapLibreMap) {
   setZoomRange(map, "highway-shield-non-us", 12, 22);
   setZoomRange(map, "highway-shield-us-interstate", 12, 22);
   setZoomRange(map, "road_shield_us", 13, 22);
-
-  for (const id of ["poi_r1", "poi_r7", "poi_r20", "poi_transit"]) {
-    setVisibility(map, id, false);
-    setZoomRange(map, id, 14, 22);
-  }
 }
 
 export type MapProps = {
   pins: Pin[];
   picking?: boolean;
   onMapClick?: (lngLat: [number, number]) => void;
+  draftLngLat?: [number, number] | null;
+  focusTarget?: [number, number] | null;
 };
 
-export default function Map({ pins, picking = false, onMapClick }: MapProps) {
+export default function Map({
+  pins,
+  picking = false,
+  onMapClick,
+  draftLngLat = null,
+  focusTarget = null,
+}: MapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  const draftMarkerRef = useRef<Marker | null>(null);
   const onMapClickRef = useRef(onMapClick);
   const pickingRef = useRef(picking);
   // Capture initial camera once so later pin add/delete does not re-center.
@@ -574,6 +694,8 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
       map.off("click", handleClick);
       clearMarkers(markersRef.current);
       markersRef.current = [];
+      draftMarkerRef.current?.remove();
+      draftMarkerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -604,6 +726,73 @@ export default function Map({ pins, picking = false, onMapClick }: MapProps) {
       };
     }
   }, [pins]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusTarget) return;
+
+    const fly = () => {
+      map.flyTo({
+        center: focusTarget,
+        zoom: Math.max(map.getZoom(), 13),
+        essential: true,
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      fly();
+    } else {
+      map.once("load", fly);
+      return () => {
+        map.off("load", fly);
+      };
+    }
+  }, [focusTarget]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const clearDraft = () => {
+      draftMarkerRef.current?.remove();
+      draftMarkerRef.current = null;
+    };
+
+    if (!draftLngLat) {
+      clearDraft();
+      return;
+    }
+
+    const applyDraft = () => {
+      if (!draftMarkerRef.current) {
+        const el = document.createElement("div");
+        el.className = "custom-map-pin draft-map-pin";
+        el.innerHTML = DRAFT_PIN_SVG;
+        el.setAttribute("aria-label", "Draft pin location");
+        draftMarkerRef.current = new Marker({
+          element: el,
+          anchor: "bottom",
+        });
+      }
+      draftMarkerRef.current.setLngLat(draftLngLat).addTo(map);
+    };
+
+    if (map.isStyleLoaded()) {
+      applyDraft();
+    } else {
+      map.once("load", applyDraft);
+      return () => {
+        map.off("load", applyDraft);
+      };
+    }
+  }, [draftLngLat]);
+
+  useEffect(() => {
+    return () => {
+      draftMarkerRef.current?.remove();
+      draftMarkerRef.current = null;
+    };
+  }, []);
 
   return (
     <div

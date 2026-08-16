@@ -8,6 +8,7 @@ import {
   type PinLinks,
   type SocialPlatform,
 } from "../lib/pins";
+import PlaceSearch, { type PlaceResult } from "./PlaceSearch";
 
 type Props = {
   lngLat: [number, number] | null;
@@ -19,6 +20,7 @@ type Props = {
     links: PinLinks;
   }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onPickLocation: (place: PlaceResult) => void;
 };
 
 const emptyLinks = (): Record<SocialPlatform, string> => ({
@@ -40,6 +42,7 @@ export default function AddPinModal({
   onClose,
   onSave,
   onDelete,
+  onPickLocation,
 }: Props) {
   const [name, setName] = useState("");
   const [links, setLinks] = useState(emptyLinks);
@@ -47,10 +50,16 @@ export default function AddPinModal({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const handlePlaceSelect = (place: PlaceResult) => {
+    onPickLocation(place);
+    setName((prev) => (prev.trim() ? prev : place.name));
+    setError(null);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!lngLat) {
-      setError("Click the map to set a location");
+      setError("Search a place or click the map to set a location");
       return;
     }
 
@@ -114,9 +123,13 @@ export default function AddPinModal({
         </div>
 
         <p className="mb-3 text-sm text-zinc-600">
-          Click the map to set the location. Name is optional. Add at least one
-          video link.
+          Search for a place or click the map to set the location. Name is
+          optional. Add at least one video link.
         </p>
+
+        <div className="mb-3">
+          <PlaceSearch onSelect={handlePlaceSelect} />
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
@@ -139,7 +152,9 @@ export default function AddPinModal({
                 Location: {lngLat[1].toFixed(5)}, {lngLat[0].toFixed(5)}
               </span>
             ) : (
-              <span className="text-amber-700">Waiting for map click…</span>
+              <span className="text-amber-700">
+                Search a place or click the map…
+              </span>
             )}
           </div>
 
