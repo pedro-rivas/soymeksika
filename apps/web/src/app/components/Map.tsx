@@ -17,7 +17,6 @@ setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const CENTER: [number, number] = [-99.15, 19.4];
 const INITIAL_ZOOM = 2;
-const MIN_ZOOM = 2;
 
 /** Facebook-style biome palette. Font glyphs: Noto Sans only. */
 const STYLE = {
@@ -417,7 +416,6 @@ export default function Map() {
       style: STYLE_URL,
       center: CENTER,
       zoom: INITIAL_ZOOM,
-      minZoom: MIN_ZOOM,
       attributionControl: { compact: true },
     });
 
