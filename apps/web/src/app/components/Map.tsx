@@ -19,6 +19,30 @@ const CENTER: [number, number] = [-99.15, 19.4];
 const INITIAL_ZOOM = 3;
 const MIN_ZOOM = 3;
 
+/** Screenshot-matched palette (Apple Maps–like). Font glyphs: Noto Sans only. */
+const STYLE = {
+  land: "#CDE9A3",
+  water: "#82D9FB",
+  waterway: "#A8E4FF",
+  urban: "#F5F1E6",
+  building: "#F0EBE3",
+  park: "#E8F5E9",
+  wood: "#D4E8C8",
+  border: "#B0B0B0",
+  roadCasing: "#D5D5D5",
+  roadInner: "#FFFFFF",
+  roadMinor: "#E8E8E8",
+  continent: "#FFFFFF",
+  continentHalo: "rgba(40,40,40,0.75)",
+  country: "#8A593E",
+  city: "#202124",
+  town: "#2D2D2D",
+  neighborhood: "#70757A",
+  halo: "#FFFFFF",
+  pin: "#007AFF",
+  pinStroke: "#0056B3",
+} as const;
+
 const SPANISH_NAME: ExpressionSpecification = [
   "coalesce",
   ["get", "name:es"],
@@ -44,8 +68,8 @@ const PIN_SVG = `
   <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M15 0C6.716 0 0 6.716 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.716 23.284 0 15 0z"
-      fill="#2A81CB"
-      stroke="#1a5f9a"
+      fill="${STYLE.pin}"
+      stroke="${STYLE.pinStroke}"
       stroke-width="1"
     />
     <circle cx="15" cy="14" r="5.5" fill="#FFFFFF"/>
@@ -92,59 +116,147 @@ function applySpanishNames(map: MapLibreMap) {
   }
 }
 
+function setPaintIfExists(
+  map: MapLibreMap,
+  layerId: string,
+  prop: string,
+  value: unknown,
+) {
+  if (!map.getLayer(layerId)) return;
+  try {
+    map.setPaintProperty(
+      layerId,
+      prop as Parameters<MapLibreMap["setPaintProperty"]>[1],
+      value as Parameters<MapLibreMap["setPaintProperty"]>[2],
+    );
+  } catch {
+    // Layer may not support this paint property.
+  }
+}
+
 function applyPastelBasemap(map: MapLibreMap) {
-  if (map.getLayer("background")) {
-    map.setPaintProperty("background", "background-color", "#dce9c9");
+  setPaintIfExists(map, "background", "background-color", STYLE.land);
+  setPaintIfExists(map, "water", "fill-color", STYLE.water);
+  setPaintIfExists(map, "waterway", "line-color", STYLE.waterway);
+  setPaintIfExists(map, "landuse_residential", "fill-color", STYLE.urban);
+  setPaintIfExists(map, "building", "fill-color", STYLE.building);
+  setPaintIfExists(map, "park", "fill-color", STYLE.park);
+  setPaintIfExists(map, "landcover_wood", "fill-color", STYLE.wood);
+
+  setPaintIfExists(map, "boundary_2", "line-color", STYLE.border);
+  setPaintIfExists(map, "boundary_3", "line-color", STYLE.border);
+  setPaintIfExists(map, "boundary_disputed", "line-color", STYLE.border);
+
+  for (const id of [
+    "highway_major_casing",
+    "highway_motorway_casing",
+    "highway_motorway_bridge_casing",
+    "tunnel_motorway_casing",
+  ]) {
+    setPaintIfExists(map, id, "line-color", STYLE.roadCasing);
   }
-  if (map.getLayer("water")) {
-    map.setPaintProperty("water", "fill-color", "#a8d4ea");
+  for (const id of [
+    "highway_major_inner",
+    "highway_motorway_inner",
+    "highway_motorway_bridge_inner",
+    "tunnel_motorway_inner",
+  ]) {
+    setPaintIfExists(map, id, "line-color", STYLE.roadInner);
   }
-  if (map.getLayer("landuse_residential")) {
-    map.setPaintProperty("landuse_residential", "fill-color", "#e8efd8");
-  }
-  if (map.getLayer("landcover_wood")) {
-    map.setPaintProperty("landcover_wood", "fill-color", "#c5d9a8");
-  }
+  setPaintIfExists(map, "highway_minor", "line-color", STYLE.roadMinor);
+  setPaintIfExists(map, "highway_path", "line-color", STYLE.roadMinor);
 }
 
 function applyLabelStyles(map: MapLibreMap) {
   for (const id of ["label_country_1", "label_country_2", "label_country_3"]) {
     if (!map.getLayer(id)) continue;
-    map.setPaintProperty(id, "text-color", "#6b5b4a");
-    map.setPaintProperty(id, "text-halo-color", "rgba(255,255,255,0.85)");
+    map.setPaintProperty(id, "text-color", STYLE.country);
+    map.setPaintProperty(id, "text-halo-color", STYLE.halo);
     map.setPaintProperty(id, "text-halo-width", 1.5);
     map.setLayoutProperty(id, "text-transform", "uppercase");
     map.setLayoutProperty(id, "text-font", ["Noto Sans Bold"]);
+    map.setLayoutProperty(id, "text-letter-spacing", 0.06);
   }
 
   for (const id of ["label_city_capital", "label_city"]) {
     if (!map.getLayer(id)) continue;
-    map.setPaintProperty(id, "text-color", "#1a1a1a");
-    map.setPaintProperty(id, "text-halo-color", "#ffffff");
-    map.setPaintProperty(id, "text-halo-width", 1.25);
+    map.setPaintProperty(id, "text-color", STYLE.city);
+    map.setPaintProperty(id, "text-halo-color", STYLE.halo);
+    map.setPaintProperty(id, "text-halo-width", 1.5);
     map.setLayoutProperty(id, "text-font", ["Noto Sans Bold"]);
     map.setLayoutProperty(id, "text-transform", "none");
   }
 
+  if (map.getLayer("label_city_capital")) {
+    map.setLayoutProperty("label_city_capital", "text-size", [
+      "interpolate",
+      ["exponential", 1.2],
+      ["zoom"],
+      7,
+      14,
+      11,
+      22,
+    ]);
+  }
+  if (map.getLayer("label_city")) {
+    map.setLayoutProperty("label_city", "text-size", [
+      "interpolate",
+      ["exponential", 1.2],
+      ["zoom"],
+      7.5,
+      12,
+      11,
+      18,
+    ]);
+  }
+
   for (const id of ["label_town", "label_village"]) {
     if (!map.getLayer(id)) continue;
-    map.setPaintProperty(id, "text-color", "#222222");
-    map.setPaintProperty(id, "text-halo-color", "#ffffff");
-    map.setPaintProperty(id, "text-halo-width", 1);
+    map.setPaintProperty(id, "text-color", STYLE.town);
+    map.setPaintProperty(id, "text-halo-color", STYLE.halo);
+    map.setPaintProperty(id, "text-halo-width", 1.25);
     map.setLayoutProperty(id, "text-font", ["Noto Sans Regular"]);
   }
 
+  if (map.getLayer("label_town")) {
+    map.setLayoutProperty("label_town", "text-size", [
+      "interpolate",
+      ["exponential", 1.2],
+      ["zoom"],
+      10,
+      11,
+      13,
+      14,
+    ]);
+  }
+  if (map.getLayer("label_village")) {
+    map.setLayoutProperty("label_village", "text-size", [
+      "interpolate",
+      ["exponential", 1.2],
+      ["zoom"],
+      12,
+      10,
+      14,
+      12,
+    ]);
+  }
+
   if (map.getLayer("label_other")) {
-    map.setPaintProperty("label_other", "text-color", "#6b6b6b");
-    map.setPaintProperty("label_other", "text-halo-color", "#ffffff");
+    map.setPaintProperty("label_other", "text-color", STYLE.neighborhood);
+    map.setPaintProperty("label_other", "text-halo-color", STYLE.halo);
     map.setPaintProperty("label_other", "text-halo-width", 1);
     map.setLayoutProperty("label_other", "text-transform", "uppercase");
     map.setLayoutProperty("label_other", "text-font", ["Noto Sans Regular"]);
+    map.setLayoutProperty("label_other", "text-letter-spacing", 0.04);
   }
 
   if (map.getLayer("label_state")) {
-    map.setPaintProperty("label_state", "text-color", "#6b5b4a");
+    map.setPaintProperty("label_state", "text-color", STYLE.country);
+    map.setPaintProperty("label_state", "text-halo-color", STYLE.halo);
+    map.setPaintProperty("label_state", "text-halo-width", 1.5);
     map.setLayoutProperty("label_state", "text-transform", "uppercase");
+    map.setLayoutProperty("label_state", "text-font", ["Noto Sans Bold"]);
+    map.setLayoutProperty("label_state", "text-letter-spacing", 0.06);
   }
 }
 
@@ -164,15 +276,15 @@ function addContinentLabels(map: MapLibreMap) {
       "text-field": SPANISH_NAME,
       "text-font": ["Noto Sans Bold"],
       "text-transform": "uppercase",
-      "text-size": ["interpolate", ["linear"], ["zoom"], 3, 18, 4.5, 22],
+      "text-size": ["interpolate", ["linear"], ["zoom"], 3, 20, 4.5, 24],
       "text-max-width": 10,
-      "text-letter-spacing": 0.08,
+      "text-letter-spacing": 0.16,
       "text-allow-overlap": false,
     },
     paint: {
-      "text-color": "#ffffff",
-      "text-halo-color": "rgba(40,40,40,0.75)",
-      "text-halo-width": 1.75,
+      "text-color": STYLE.continent,
+      "text-halo-color": STYLE.continentHalo,
+      "text-halo-width": 2,
     },
   });
 }
