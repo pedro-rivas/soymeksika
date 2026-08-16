@@ -6,7 +6,7 @@ import type { HighlightPhase } from "../lib/animations/countryHighlight";
 const PHASE_LABELS: Record<HighlightPhase, string> = {
   idle: "Ready",
   arriving: "Flying to country…",
-  highlighting: "Closing in the highlight…",
+  highlighting: "Highlighting…",
   holding: "Holding highlight…",
   closing: "Closing highlight…",
 };
@@ -52,7 +52,7 @@ export default function AnimationPanel({
 
       <div className="space-y-3 px-4 pb-4 pt-2">
         <p className="text-xs leading-relaxed text-zinc-400">
-          Flies to the selected country, pulses a glowing highlight, then
+          Flies to the selected country, fades in a glowing highlight, then
           closes it out.
         </p>
 
@@ -124,7 +124,7 @@ export default function AnimationPanel({
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-zinc-400">
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                playing ? "animate-pulse bg-amber-400" : "bg-zinc-600"
+                playing ? "bg-amber-400" : "bg-zinc-600"
               }`}
             />
             <span className="truncate">{PHASE_LABELS[phase]}</span>

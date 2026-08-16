@@ -32,10 +32,8 @@ const COLORS = {
 const NO_COUNTRY = "__none__";
 
 const FLY_MS = 2600;
-const PULSES = 3;
-const PULSE_MS = 700;
+const HIGHLIGHT_MS = 900;
 const DIM_MS = 900;
-const SETTLE_MS = 400;
 const HOLD_MS = 700;
 const CLOSE_MS = 1100;
 const MAX_COUNTRY_ZOOM = 5.5;
@@ -181,7 +179,7 @@ function flyToCountry(
   });
 }
 
-async function pulseIn(map: MapLibreMap, token: StopToken): Promise<void> {
+async function highlightIn(map: MapLibreMap, token: StopToken): Promise<void> {
   const dimRamp = animate(DIM_MS, token, (t) => {
     map.setPaintProperty(
       COUNTRY_LAYERS.dim,
@@ -190,61 +188,20 @@ async function pulseIn(map: MapLibreMap, token: StopToken): Promise<void> {
     );
   });
 
-  const pulses = (async () => {
-    for (let i = 0; i < PULSES; i++) {
-      if (token.stopped) return;
-      await animate(PULSE_MS, token, (raw) => {
-        const t = easeInOutCubic(raw);
-        const wave = Math.sin(t * Math.PI);
-        const intro = i === 0 ? Math.min(1, raw * 2) : 1;
+  const fillRamp = animate(HIGHLIGHT_MS, token, (raw) => {
+    const t = easeOutCubic(raw);
+    map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", lerp(0, 0.4, t));
+    map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", lerp(0, 1, t));
+    map.setPaintProperty(COUNTRY_LAYERS.line, "line-width", lerp(1.4, 2.2, t));
+    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0, 0.22, t));
+    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-width", lerp(4, 9, t));
+    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-blur", lerp(2, 6, t));
+  });
 
-        map.setPaintProperty(
-          COUNTRY_LAYERS.fill,
-          "fill-opacity",
-          lerp(0.12, 0.55, wave) * intro,
-        );
-        map.setPaintProperty(
-          COUNTRY_LAYERS.line,
-          "line-opacity",
-          lerp(0.75, 1, wave) * intro,
-        );
-        map.setPaintProperty(
-          COUNTRY_LAYERS.line,
-          "line-width",
-          lerp(1.4, 2.6, wave),
-        );
-        map.setPaintProperty(
-          COUNTRY_LAYERS.glow,
-          "line-opacity",
-          lerp(0.5, 0.06, t) * intro,
-        );
-        map.setPaintProperty(
-          COUNTRY_LAYERS.glow,
-          "line-width",
-          lerp(4, 18, easeOutCubic(t)),
-        );
-        map.setPaintProperty(
-          COUNTRY_LAYERS.glow,
-          "line-blur",
-          lerp(2, 10, t),
-        );
-      });
-    }
-  })();
-
-  await Promise.all([dimRamp, pulses]);
+  await Promise.all([dimRamp, fillRamp]);
 }
 
-async function hold(map: MapLibreMap, token: StopToken): Promise<void> {
-  await animate(SETTLE_MS, token, (raw) => {
-    const t = easeOutCubic(raw);
-    map.setPaintProperty(COUNTRY_LAYERS.fill, "fill-opacity", lerp(0.12, 0.4, t));
-    map.setPaintProperty(COUNTRY_LAYERS.line, "line-opacity", 1);
-    map.setPaintProperty(COUNTRY_LAYERS.line, "line-width", lerp(1.4, 2.2, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-opacity", lerp(0.06, 0.22, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-width", lerp(18, 9, t));
-    map.setPaintProperty(COUNTRY_LAYERS.glow, "line-blur", lerp(10, 6, t));
-  });
+async function hold(_map: MapLibreMap, _token: StopToken): Promise<void> {
   await wait(HOLD_MS);
 }
 
@@ -260,7 +217,7 @@ async function closeOut(map: MapLibreMap, token: StopToken): Promise<void> {
 
 /**
  * Plays the "Country Highlight" travel intro: fly to the country, dim the
- * rest of the world, pulse a glowing highlight, hold, then close the
+ * rest of the world, fade in a glowing highlight, hold, then close the
  * highlight out so the next animation can take over.
  */
 export class CountryHighlightPlayer {
@@ -292,7 +249,7 @@ export class CountryHighlightPlayer {
       }
 
       setPhase("highlighting");
-      await pulseIn(map, token);
+      await highlightIn(map, token);
       if (token.stopped) return;
 
       setPhase("holding");
